@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-velo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-velo}
+      POSTGRES_DB: ${POSTGRES_DB:-velocity_tracker}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-velo} -d ${POSTGRES_DB:-velocity_tracker}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      PORT: ${BACKEND_PORT:-8080}
+      DATABASE_URL: ${DATABASE_URL:-postgres://velo:velo@postgres:5432/velocity_tracker?sslmode=disable}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8080}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
