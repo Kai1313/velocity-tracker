@@ -4,7 +4,7 @@ A real app for tracking sprint velocity, planning accuracy, and late-add rate fo
 
 ## Stack
 
-- **Frontend**: Next.js 15 / TypeScript, Tailwind CSS, [shadcn/ui](https://ui.shadcn.com) components (`frontend/`) — requires **Node 18.18+** (Next.js 15 will not run on Node 16)
+- **Frontend**: Next.js 15 / TypeScript, Tailwind CSS, [shadcn/ui](https://ui.shadcn.com) components, [next-themes](https://github.com/pacocoursey/next-themes) for dark mode (`frontend/`) — requires **Node 18.18+** (Next.js 15 will not run on Node 16)
 - **Backend**: Go, stdlib `net/http` (Go 1.22+ routing patterns), raw `pgx` for Postgres access — no ORM, no router framework (`backend/`)
 - **Database**: PostgreSQL, migrated via `golang-migrate` (embedded, runs automatically on backend startup)
 
@@ -68,3 +68,5 @@ Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](C
 ## Dashboard UI
 
 `/dashboard` shows all sprints with workload/done totals; clicking a sprint links to `/dashboard/{sprintId}` for its per-developer breakdown. Built with [shadcn/ui](https://ui.shadcn.com) (`Card`/`Table`/`Badge`) — component source lives in `frontend/components/ui/`, not an npm package, so it can be edited directly. To add more shadcn components later: `npx shadcn@latest add <component>` from `frontend/`.
+
+Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a theme toggle in the top-right corner. It cycles Light → Dark → System; System follows the OS preference and is the default on first visit, with the chosen theme persisted across visits.
