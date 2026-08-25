@@ -51,6 +51,17 @@ export type TicketDetail = {
   currentStatus: EntryStatus | null;
 };
 
+export type SprintEntry = {
+  id: number;
+  ticketId: number;
+  sprintId: number;
+  status: EntryStatus;
+  addedAfterSprintStart: boolean;
+  carriedFrom: number | null;
+  pointsAtEntry: number;
+  createdAt: string;
+};
+
 function backendUrl() {
   return process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:8080';
 }
@@ -171,4 +182,31 @@ export function updateSprint(
 
 export function deleteSprint(id: number) {
   return requestJSON<void>('DELETE', `/sprints/${id}`);
+}
+
+export function listSprintEntries() {
+  return requestJSON<SprintEntry[]>('GET', '/sprint-entries');
+}
+
+export type SprintEntryCreateInput = {
+  ticketId: number;
+  sprintId: number;
+  status: EntryStatus;
+  addedAfterSprintStart: boolean;
+  carriedFrom: number | null;
+  pointsAtEntry: number;
+};
+
+export type SprintEntryUpdateInput = Omit<SprintEntryCreateInput, 'ticketId' | 'sprintId'>;
+
+export function createSprintEntry(input: SprintEntryCreateInput) {
+  return requestJSON<SprintEntry>('POST', '/sprint-entries', input);
+}
+
+export function updateSprintEntry(id: number, input: SprintEntryUpdateInput) {
+  return requestJSON<SprintEntry>('PUT', `/sprint-entries/${id}`, input);
+}
+
+export function deleteSprintEntry(id: number) {
+  return requestJSON<void>('DELETE', `/sprint-entries/${id}`);
 }

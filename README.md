@@ -75,9 +75,11 @@ Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a
 
 ## Admin UI
 
-`/admin` is where `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` records actually get created — there's no other way to populate the app's data short of calling the API directly. `/admin/users`, `/admin/projects`, `/admin/tickets`, and `/admin/sprints` are implemented; `SprintEntry` is planned as follow-up work in the same pattern (it ties a `Ticket` and a `Sprint` together, so it needs both of the above to exist first — see [ADR-0001](docs/adr/0001-ticket-sprintentry-split.md)).
+`/admin` is where `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` records actually get created — there's no other way to populate the app's data short of calling the API directly. All five entities are implemented (`/admin/users`, `/admin/projects`, `/admin/tickets`, `/admin/sprints`, `/admin/sprint-entries`).
 
 The Ticket form's Project/Assignee fields and the Sprint form's dates work as you'd expect from the API shapes: Assignee is nullable (an "Unassigned" option, not a required field), and dates round-trip between the `<input type="date">` UI (`YYYY-MM-DD`) and the backend's RFC3339 `time.Time` JSON via small converters in `app/admin/sprints/page.tsx`.
+
+`/admin/sprint-entries` is the most involved of the five, since a `SprintEntry` ties a `Ticket` and a `Sprint` together (see [ADR-0001](docs/adr/0001-ticket-sprintentry-split.md)) and its `ticketId`/`sprintId` are fixed at creation — the edit dialog shows them read-only rather than as editable fields, matching what the API actually accepts on `PUT`. It also surfaces the Close-Sprint lock from [CONTEXT.md](CONTEXT.md#close-sprint): once an entry's parent sprint is `Closed`, its Edit button is disabled client-side (with a "Locked" badge in the list) rather than letting the user hit the 409 the backend would return — but Delete stays enabled, since the backend only locks edits, not deletion, and the UI matches that asymmetry rather than assuming edits and deletes are locked together.
 
 Each entity gets a list page (`Card`/`Table`, matching the dashboard's look) with dialog-based create/edit forms and a confirm step before delete. `frontend/components/admin/delete-confirm-button.tsx` is shared across entities; the create/edit dialogs are not, since their fields differ enough per entity that a shared abstraction isn't worth it yet.
 
