@@ -1,6 +1,6 @@
 # Velocity Tracker
 
-A real app (not the throwaway `Team_Velocity_Tracker.xlsx` mockup), backed by PostgreSQL, for tracking sprint velocity, planning accuracy, and late-add rate for a single software team (one lead developer plus several developers). Multi-team support is an explicit Future Enhancement, not MVP scope.
+A real app (not the throwaway `Team_Velocity_Tracker.example.xlsx` mockup), backed by PostgreSQL, for tracking sprint velocity, planning accuracy, and late-add rate for a single software team (one lead developer plus several developers). Multi-team support is an explicit Future Enhancement, not MVP scope.
 
 ## Language
 

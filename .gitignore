@@ -16,3 +16,7 @@
 # Editor / OS
 .DS_Store
 .claude/
+
+# Real spreadsheet data must never be committed — only the template is tracked
+*.xlsx
+!Team_Velocity_Tracker.example.xlsx
