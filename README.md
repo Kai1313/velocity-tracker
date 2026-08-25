@@ -51,7 +51,9 @@ npm install
 npm run dev
 ```
 
-Needs Node 18.18+ (Next.js 15's minimum). If you have `nvm`, run `nvm use 18` (or newer) first. `BACKEND_INTERNAL_URL` (defaults to `http://localhost:8080`) tells the frontend where to reach the backend for its server-side data fetches.
+Needs Node 18.18+ (Next.js 15's minimum). If you have `nvm`, run `nvm use 18` (or newer) first. `BACKEND_INTERNAL_URL` (defaults to `http://localhost:8080`) tells the frontend where to reach the backend for its server-side data fetches; `NEXT_PUBLIC_BACKEND_URL` (also defaults to `http://localhost:8080`) is the browser-reachable equivalent, used by client-side mutations (the Admin UI's create/edit/delete calls) since those run in the browser, not on the Next.js server.
+
+Note: `npx shadcn@latest add <component>` (mentioned below) requires Node 20+ and will crash on Node 18 — it's a separate requirement from the Node 18.18+ the app itself needs.
 
 ## API
 
@@ -69,4 +71,12 @@ Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](C
 
 `/dashboard` shows all sprints with workload/done totals; clicking a sprint links to `/dashboard/{sprintId}` for its per-developer breakdown. Built with [shadcn/ui](https://ui.shadcn.com) (`Card`/`Table`/`Badge`) — component source lives in `frontend/components/ui/`, not an npm package, so it can be edited directly. To add more shadcn components later: `npx shadcn@latest add <component>` from `frontend/`.
 
-Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a theme toggle in the top-right corner. It cycles Light → Dark → System; System follows the OS preference and is the default on first visit, with the chosen theme persisted across visits.
+Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a theme toggle in the top-right corner. It cycles Light → Dark → System; System follows the OS preference and is the default on first visit, with the chosen theme persisted across visits. The header also links to `/admin/users` for data entry.
+
+## Admin UI
+
+`/admin` is where `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` records actually get created — there's no other way to populate the app's data short of calling the API directly. `/admin/users` and `/admin/projects` are implemented; the rest are planned as follow-up work in the same pattern.
+
+Each entity gets a list page (`Card`/`Table`, matching the dashboard's look) with dialog-based create/edit forms and a confirm step before delete. `frontend/components/admin/delete-confirm-button.tsx` is shared across entities; the create/edit dialogs are not, since their fields differ enough per entity that a shared abstraction isn't worth it yet.
+
+_Current state_: `/admin` uses a left sidebar (`frontend/app/admin/layout.tsx`) linking between entity sections, with the theme toggle in its footer. This is a minimal, flat nav shell scoped to the MVP — it has no access control (consistent with the API having none — see below) and isn't meant to be the final admin IA once the app grows past five entities or gains real users/roles.

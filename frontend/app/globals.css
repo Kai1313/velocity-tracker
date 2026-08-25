@@ -15,6 +15,7 @@
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
+    --ring: 222 47% 11%;
     --radius: 0.5rem;
   }
 
@@ -30,6 +31,7 @@
     --primary-foreground: 222 47% 11%;
     --secondary: 217 33% 18%;
     --secondary-foreground: 210 40% 98%;
+    --ring: 210 40% 98%;
   }
 }
 
