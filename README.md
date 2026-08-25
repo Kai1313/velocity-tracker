@@ -4,7 +4,7 @@ A real app for tracking sprint velocity, planning accuracy, and late-add rate fo
 
 ## Stack
 
-- **Frontend**: Next.js 15 / TypeScript, Tailwind CSS, [shadcn/ui](https://ui.shadcn.com) components, [next-themes](https://github.com/pacocoursey/next-themes) for dark mode (`frontend/`) — requires **Node 18.18+** (Next.js 15 will not run on Node 16)
+- **Frontend**: Next.js 15 / TypeScript, Tailwind CSS, [shadcn/ui](https://ui.shadcn.com) components, [next-themes](https://github.com/pacocoursey/next-themes) for dark mode, `@radix-ui/react-dialog` + `@radix-ui/react-alert-dialog` for the Admin UI's forms (`frontend/`) — requires **Node 18.18+** (Next.js 15 will not run on Node 16)
 - **Backend**: Go, stdlib `net/http` (Go 1.22+ routing patterns), raw `pgx` for Postgres access — no ORM, no router framework (`backend/`)
 - **Database**: PostgreSQL, migrated via `golang-migrate` (embedded, runs automatically on backend startup)
 
@@ -35,7 +35,7 @@ cd backend
 go test ./...
 ```
 
-Unit tests (service-layer business rules) run with no setup. Integration tests (repository layer, anything resting on DB constraints/triggers) need a real Postgres reachable via `TEST_DATABASE_URL`; they skip automatically if it's unset:
+Unit tests (service-layer business rules, plus the CORS middleware in `internal/handler`) run with no setup. Integration tests (repository layer, anything resting on DB constraints/triggers) need a real Postgres reachable via `TEST_DATABASE_URL`; they skip automatically if it's unset:
 
 ```bash
 docker compose up postgres
@@ -55,9 +55,22 @@ Needs Node 18.18+ (Next.js 15's minimum). If you have `nvm`, run `nvm use 18` (o
 
 Note: `npx shadcn@latest add <component>` (mentioned below) requires Node 20+ and will crash on Node 18 — it's a separate requirement from the Node 18.18+ the app itself needs.
 
+## Testing the frontend
+
+```bash
+docker compose up
+cd frontend
+npm install
+npm run test:e2e
+```
+
+These are browser-driven Playwright tests against the real running app (frontend + backend + Postgres) — not mocked, the same "needs the real thing running" shape as the backend's `TEST_DATABASE_URL` integration tests. They cover the Admin UI's CRUD flows for all 5 entities, the closed-sprint edit lock, the Sprint form's date round-trip, and the theme toggle. Each test creates uniquely-named fixture data through the API and deletes it afterward (in FK-safe order — sprint-entries before their ticket/sprint, tickets before their project) — the shared dev DB should come back to its pre-test state either way. Tests run with a single worker (`playwright.config.ts`), not in parallel, since they mutate shared backend state.
+
+`E2E_BASE_URL` (defaults to `http://localhost:3000`) and `E2E_API_BASE_URL` (defaults to `http://localhost:8080`) override where the tests point, if you're not using the default Compose ports.
+
 ## API
 
-All endpoints are JSON, `camelCase` in and out, no authentication in MVP. CRUD is provided for `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` — see the handler packages under `backend/internal/handler/` for the exact routes.
+All endpoints are JSON, `camelCase` in and out, no authentication in MVP. CORS is wide open (`Access-Control-Allow-Origin: *`, see `backend/internal/handler/cors.go`) so the Admin UI's browser-side mutations can reach it — permissive by design, consistent with there being no auth to protect in the first place. CRUD is provided for `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` — see the handler packages under `backend/internal/handler/` for the exact routes.
 
 **Dashboard** (read-only, computed server-side):
 - `GET /dashboard/sprints` — workload/done story points per sprint, across all sprints
