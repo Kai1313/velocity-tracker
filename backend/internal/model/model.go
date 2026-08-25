@@ -10,16 +10,37 @@ const (
 )
 
 type User struct {
-	ID   int64
-	Name string
-	Role Role
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	Role Role   `json:"role"`
+}
+
+type ProjectStatus string
+
+const (
+	ProjectActive   ProjectStatus = "Active"
+	ProjectArchived ProjectStatus = "Archived"
+)
+
+type Project struct {
+	ID     int64         `json:"id"`
+	Name   string        `json:"name"`
+	Status ProjectStatus `json:"status"`
 }
 
 type Ticket struct {
-	ID          int64
-	Title       string
-	StoryPoints int
-	AssigneeID  *int64
+	ID          int64  `json:"id"`
+	ProjectID   int64  `json:"projectId"`
+	Title       string `json:"title"`
+	StoryPoints int    `json:"storyPoints"`
+	AssigneeID  *int64 `json:"assigneeId"`
+}
+
+// TicketDetail is a Ticket plus its current status, computed from the
+// ticket's most recent SprintEntry rather than stored on Ticket itself.
+type TicketDetail struct {
+	Ticket
+	CurrentStatus *EntryStatus `json:"currentStatus"`
 }
 
 type SprintStatus string
@@ -30,11 +51,11 @@ const (
 )
 
 type Sprint struct {
-	ID        int64
-	Name      string
-	StartDate time.Time
-	EndDate   time.Time
-	Status    SprintStatus
+	ID        int64        `json:"id"`
+	Name      string       `json:"name"`
+	StartDate time.Time    `json:"startDate"`
+	EndDate   time.Time    `json:"endDate"`
+	Status    SprintStatus `json:"status"`
 }
 
 type EntryStatus string
@@ -46,12 +67,12 @@ const (
 )
 
 type SprintEntry struct {
-	ID                    int64
-	TicketID              int64
-	SprintID              int64
-	Status                EntryStatus
-	AddedAfterSprintStart bool
-	CarriedFrom           *int64
-	PointsAtEntry         int
-	CreatedAt             time.Time
+	ID                    int64       `json:"id"`
+	TicketID              int64       `json:"ticketId"`
+	SprintID              int64       `json:"sprintId"`
+	Status                EntryStatus `json:"status"`
+	AddedAfterSprintStart bool        `json:"addedAfterSprintStart"`
+	CarriedFrom           *int64      `json:"carriedFrom"`
+	PointsAtEntry         int         `json:"pointsAtEntry"`
+	CreatedAt             time.Time   `json:"createdAt"`
 }

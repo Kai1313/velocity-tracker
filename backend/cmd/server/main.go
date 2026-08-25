@@ -25,8 +25,21 @@ func main() {
 	defer pg.Close()
 
 	healthService := service.NewHealthService(pg)
-	healthHandler := handler.NewHealthHandler(healthService)
-	router := handler.NewRouter(healthHandler)
+	userService := service.NewUserService(repository.NewUserRepository(pg.Pool))
+	projectService := service.NewProjectService(repository.NewProjectRepository(pg.Pool))
+	ticketService := service.NewTicketService(repository.NewTicketRepository(pg.Pool))
+	sprintRepo := repository.NewSprintRepository(pg.Pool)
+	sprintService := service.NewSprintService(sprintRepo)
+	sprintEntryService := service.NewSprintEntryService(repository.NewSprintEntryRepository(pg.Pool), sprintRepo)
+
+	router := handler.NewRouter(handler.Handlers{
+		Health:        handler.NewHealthHandler(healthService),
+		Users:         handler.NewUserHandler(userService),
+		Projects:      handler.NewProjectHandler(projectService),
+		Tickets:       handler.NewTicketHandler(ticketService),
+		Sprints:       handler.NewSprintHandler(sprintService),
+		SprintEntries: handler.NewSprintEntryHandler(sprintEntryService),
+	})
 
 	log.Printf("listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil {
