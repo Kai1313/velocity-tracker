@@ -75,7 +75,9 @@ Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a
 
 ## Admin UI
 
-`/admin` is where `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` records actually get created — there's no other way to populate the app's data short of calling the API directly. `/admin/users` and `/admin/projects` are implemented; the rest are planned as follow-up work in the same pattern.
+`/admin` is where `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` records actually get created — there's no other way to populate the app's data short of calling the API directly. `/admin/users`, `/admin/projects`, `/admin/tickets`, and `/admin/sprints` are implemented; `SprintEntry` is planned as follow-up work in the same pattern (it ties a `Ticket` and a `Sprint` together, so it needs both of the above to exist first — see [ADR-0001](docs/adr/0001-ticket-sprintentry-split.md)).
+
+The Ticket form's Project/Assignee fields and the Sprint form's dates work as you'd expect from the API shapes: Assignee is nullable (an "Unassigned" option, not a required field), and dates round-trip between the `<input type="date">` UI (`YYYY-MM-DD`) and the backend's RFC3339 `time.Time` JSON via small converters in `app/admin/sprints/page.tsx`.
 
 Each entity gets a list page (`Card`/`Table`, matching the dashboard's look) with dialog-based create/edit forms and a confirm step before delete. `frontend/components/admin/delete-confirm-button.tsx` is shared across entities; the create/edit dialogs are not, since their fields differ enough per entity that a shared abstraction isn't worth it yet.
 

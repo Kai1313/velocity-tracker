@@ -5,6 +5,8 @@ import { ThemeToggle } from '@/components/theme-toggle';
 const NAV_ITEMS = [
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/projects', label: 'Projects' },
+  { href: '/admin/tickets', label: 'Tickets' },
+  { href: '/admin/sprints', label: 'Sprints' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

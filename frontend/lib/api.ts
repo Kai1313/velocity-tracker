@@ -40,6 +40,17 @@ export type Project = {
   status: ProjectStatus;
 };
 
+export type EntryStatus = 'Done' | 'NotDone' | 'Cancelled';
+
+export type TicketDetail = {
+  id: number;
+  projectId: number;
+  title: string;
+  storyPoints: number;
+  assigneeId: number | null;
+  currentStatus: EntryStatus | null;
+};
+
 function backendUrl() {
   return process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:8080';
 }
@@ -123,4 +134,41 @@ export function updateProject(id: number, input: { name: string; status: Project
 
 export function deleteProject(id: number) {
   return requestJSON<void>('DELETE', `/projects/${id}`);
+}
+
+export function listTickets() {
+  return requestJSON<TicketDetail[]>('GET', '/tickets');
+}
+
+export type TicketInput = { projectId: number; title: string; storyPoints: number; assigneeId: number | null };
+
+export function createTicket(input: TicketInput) {
+  return requestJSON<TicketDetail>('POST', '/tickets', input);
+}
+
+export function updateTicket(id: number, input: TicketInput) {
+  return requestJSON<TicketDetail>('PUT', `/tickets/${id}`, input);
+}
+
+export function deleteTicket(id: number) {
+  return requestJSON<void>('DELETE', `/tickets/${id}`);
+}
+
+export function listSprints() {
+  return requestJSON<Sprint[]>('GET', '/sprints');
+}
+
+export function createSprint(input: { name: string; startDate: string; endDate: string }) {
+  return requestJSON<Sprint>('POST', '/sprints', input);
+}
+
+export function updateSprint(
+  id: number,
+  input: { name: string; startDate: string; endDate: string; status: Sprint['status'] },
+) {
+  return requestJSON<Sprint>('PUT', `/sprints/${id}`, input);
+}
+
+export function deleteSprint(id: number) {
+  return requestJSON<void>('DELETE', `/sprints/${id}`);
 }
