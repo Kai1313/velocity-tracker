@@ -31,6 +31,7 @@ func main() {
 	sprintRepo := repository.NewSprintRepository(pg.Pool)
 	sprintService := service.NewSprintService(sprintRepo)
 	sprintEntryService := service.NewSprintEntryService(repository.NewSprintEntryRepository(pg.Pool), sprintRepo)
+	dashboardService := service.NewDashboardService(repository.NewDashboardRepository(pg.Pool), sprintRepo)
 
 	router := handler.NewRouter(handler.Handlers{
 		Health:        handler.NewHealthHandler(healthService),
@@ -39,6 +40,7 @@ func main() {
 		Tickets:       handler.NewTicketHandler(ticketService),
 		Sprints:       handler.NewSprintHandler(sprintService),
 		SprintEntries: handler.NewSprintEntryHandler(sprintEntryService),
+		Dashboard:     handler.NewDashboardHandler(dashboardService),
 	})
 
 	log.Printf("listening on :%s", cfg.Port)

@@ -4,7 +4,7 @@ A real app for tracking sprint velocity, planning accuracy, and late-add rate fo
 
 ## Stack
 
-- **Frontend**: Next.js / TypeScript (`frontend/`)
+- **Frontend**: Next.js 15 / TypeScript, Tailwind CSS, [shadcn/ui](https://ui.shadcn.com) components (`frontend/`) — requires **Node 18.18+** (Next.js 15 will not run on Node 16)
 - **Backend**: Go, stdlib `net/http` (Go 1.22+ routing patterns), raw `pgx` for Postgres access — no ORM, no router framework (`backend/`)
 - **Database**: PostgreSQL, migrated via `golang-migrate` (embedded, runs automatically on backend startup)
 
@@ -43,8 +43,28 @@ cd backend
 TEST_DATABASE_URL="postgres://velo:velo@localhost:5432/velocity_tracker?sslmode=disable" go test ./...
 ```
 
+## Running the frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Needs Node 18.18+ (Next.js 15's minimum). If you have `nvm`, run `nvm use 18` (or newer) first. `BACKEND_INTERNAL_URL` (defaults to `http://localhost:8080`) tells the frontend where to reach the backend for its server-side data fetches.
+
 ## API
 
 All endpoints are JSON, `camelCase` in and out, no authentication in MVP. CRUD is provided for `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` — see the handler packages under `backend/internal/handler/` for the exact routes.
 
-Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](CONTEXT.md#close-sprint)), and all velocity/planning-accuracy/late-add-rate reporting — both are deferred follow-ups on top of this CRUD layer.
+**Dashboard** (read-only, computed server-side):
+- `GET /dashboard/sprints` — workload/done story points per sprint, across all sprints
+- `GET /dashboard/sprints/{id}` — workload/done story points per developer, within one sprint
+
+See [ADR-0004](docs/adr/0004-dashboard-v1-simplified-metrics.md) for why these are simpler "workload vs. done" totals rather than the full Sprint Velocity/Planning Accuracy model from [CONTEXT.md](CONTEXT.md).
+
+Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](CONTEXT.md#close-sprint)), and the Committed/Late-Add split, Planning Accuracy, and Late-Add Rate calculations.
+
+## Dashboard UI
+
+`/dashboard` shows all sprints with workload/done totals; clicking a sprint links to `/dashboard/{sprintId}` for its per-developer breakdown. Built with [shadcn/ui](https://ui.shadcn.com) (`Card`/`Table`/`Badge`) — component source lives in `frontend/components/ui/`, not an npm package, so it can be edited directly. To add more shadcn components later: `npx shadcn@latest add <component>` from `frontend/`.

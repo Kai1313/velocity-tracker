@@ -66,6 +66,31 @@ const (
 	EntryCancelled EntryStatus = "Cancelled"
 )
 
+// SprintSummary is one sprint's aggregate workload/done totals, computed
+// from its SprintEntry rows (Cancelled entries excluded). "Workload" and
+// "Done" are a deliberately simpler v1 metric than the CONTEXT.md Sprint
+// Velocity definition (no Committed/Late-Add split yet) — see ADR-0004.
+type SprintSummary struct {
+	SprintID        int64  `json:"sprintId"`
+	SprintName      string `json:"sprintName"`
+	WorkloadPoints  int    `json:"workloadPoints"`
+	DonePoints      int    `json:"donePoints"`
+	WorkloadTickets int    `json:"workloadTickets"`
+	DoneTickets     int    `json:"doneTickets"`
+}
+
+// DeveloperSummary is one developer's workload/done totals within a single
+// sprint. UserID is nil for tickets with no assignee, grouped under "Unassigned"
+// so its points aren't silently dropped from the per-developer view.
+type DeveloperSummary struct {
+	UserID          *int64 `json:"userId"`
+	Name            string `json:"name"`
+	WorkloadPoints  int    `json:"workloadPoints"`
+	DonePoints      int    `json:"donePoints"`
+	WorkloadTickets int    `json:"workloadTickets"`
+	DoneTickets     int    `json:"doneTickets"`
+}
+
 type SprintEntry struct {
 	ID                    int64       `json:"id"`
 	TicketID              int64       `json:"ticketId"`

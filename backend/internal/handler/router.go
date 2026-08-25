@@ -9,6 +9,7 @@ type Handlers struct {
 	Tickets       *TicketHandler
 	Sprints       *SprintHandler
 	SprintEntries *SprintEntryHandler
+	Dashboard     *DashboardHandler
 }
 
 func NewRouter(h Handlers) http.Handler {
@@ -46,6 +47,9 @@ func NewRouter(h Handlers) http.Handler {
 	mux.HandleFunc("GET /sprint-entries/{id}", h.SprintEntries.Get)
 	mux.HandleFunc("PUT /sprint-entries/{id}", h.SprintEntries.Update)
 	mux.HandleFunc("DELETE /sprint-entries/{id}", h.SprintEntries.Delete)
+
+	mux.HandleFunc("GET /dashboard/sprints", h.Dashboard.SprintSummaries)
+	mux.HandleFunc("GET /dashboard/sprints/{id}", h.Dashboard.SprintDeveloperBreakdown)
 
 	return mux
 }

@@ -27,6 +27,7 @@ _Current state_: the CRUD layer enforces the lock (a `Sprint` set to `Closed` re
 **Sprint Velocity**:
 Total story points across a sprint's **Committed Completed Points** and **Late-Add Completed Points**. Shown as a single number to the team, but always backed by the two-part split underneath.
 _Avoid_: Completed Points (ambiguous — doesn't say whether late-adds are included)
+_Not the same as_: the dashboard's **Workload**/**Done** figures (`GET /dashboard/sprints`). Those are a deliberately simpler v1 metric — total points committed vs. done, with no Committed/Late-Add split yet. See [ADR-0004](docs/adr/0004-dashboard-v1-simplified-metrics.md).
 
 **Committed Completed Points**:
 Story points completed in a sprint, counted only from tickets that were part of the sprint's original commitment (not added after sprint start).

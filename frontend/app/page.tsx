@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 type ReadyResponse = {
   status: string;
   db?: string;
@@ -27,6 +29,9 @@ export default async function Home() {
         Backend: <strong>{ok ? 'ok' : 'unavailable'}</strong>
       </p>
       <pre style={{ background: '#f4f4f4', padding: '1rem' }}>{JSON.stringify(body, null, 2)}</pre>
+      <p>
+        <Link href="/dashboard">Go to Sprint Dashboard &rarr;</Link>
+      </p>
     </main>
   );
 }
