@@ -13,6 +13,7 @@ The stable record of a piece of work: id, title, story points, owning project. A
 **SprintEntry**:
 One row per sprint that a Ticket appears in. Holds the per-sprint snapshot: status (Done / Not Done / Cancelled), whether it was added after sprint start, and — if carried over — a `carried-from` reference to the SprintEntry it continued from. A ticket that spans 3 sprints has 3 SprintEntry rows, one per sprint, so each sprint's history stays immutable once that sprint closes.
 _Avoid_: treating Ticket and its sprint appearance as the same row — that was the xlsx mockup's mistake, and it's why the mockup couldn't compute carry-over or planning-accuracy history correctly.
+_Validation_: `carried-from` is only accepted if it points to the *same ticket's* own `NotDone` entry in a sprint that's already `Closed` — anything else (a different ticket, a `Done`/`Cancelled` source, a still-`Open` source sprint) is rejected. See [ADR-0005](docs/adr/0005-carried-from-validation.md).
 
 **User**:
 A structured record for a team member (lead developer or developer) who can be assigned tickets. Replaces free-text assignee names. Carries a `role`, but no permissions are gated on it in MVP — it's descriptive only, reserved for future per-role views.
@@ -22,7 +23,7 @@ Never stored directly on `Ticket`. Always computed by reading the `status` of th
 
 **Close Sprint**:
 An explicit, manual action (MVP: performed by a user, not automatic on end date) that locks a sprint's `SprintEntry` rows against further edits and auto-creates carried-over `SprintEntry` rows in the next sprint for any ticket still Not Done. Before this action, a sprint is still "open" even past its end date. See [ADR-0001](docs/adr/0001-ticket-sprintentry-split.md) for why per-sprint history needs to be locked down at all.
-_Current state_: the CRUD layer enforces the lock (a `Sprint` set to `Closed` rejects further `SprintEntry` edits) but does not yet implement the auto-carry-over creation — that's a separate follow-up feature, not part of basic entity CRUD.
+_Current state_: the CRUD layer enforces the lock (a `Sprint` set to `Closed` rejects further `SprintEntry` edits) but does not yet implement the auto-carry-over creation — that's a separate follow-up feature, not part of basic entity CRUD. Until then, carrying a `NotDone` ticket forward is a manual step (create its next-sprint `SprintEntry` and set `carried-from`); the Sprint Entries admin page warns when a `NotDone` entry in a `Closed` sprint has no later entry yet, as a backstop against a missed carry-over. See [ADR-0005](docs/adr/0005-carried-from-validation.md).
 
 **Sprint Velocity**:
 Total story points across a sprint's **Committed Completed Points** and **Late-Add Completed Points**. Shown as a single number to the team, but always backed by the two-part split underneath.

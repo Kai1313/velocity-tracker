@@ -54,6 +54,7 @@ function EntryFormDialog({
   const [status, setStatus] = useState<EntryStatus>(entry?.status ?? 'NotDone');
   const [addedAfterStart, setAddedAfterStart] = useState(entry?.addedAfterSprintStart ?? false);
   const [carriedFrom, setCarriedFrom] = useState<string>(entry?.carriedFrom != null ? String(entry.carriedFrom) : NONE);
+  const [carriedFromTouched, setCarriedFromTouched] = useState(false);
   const [points, setPoints] = useState(entry?.pointsAtEntry ?? tickets[0]?.storyPoints ?? 1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,10 +69,30 @@ function EntryFormDialog({
       setStatus(entry?.status ?? 'NotDone');
       setAddedAfterStart(entry?.addedAfterSprintStart ?? false);
       setCarriedFrom(entry?.carriedFrom != null ? String(entry.carriedFrom) : NONE);
+      setCarriedFromTouched(false);
       setPoints(entry?.pointsAtEntry ?? tickets[0]?.storyPoints ?? 1);
       setError(null);
     }
   }, [open, entry, tickets, sprints]);
+
+  // Only entries for the same ticket, still NotDone, from a sprint that's
+  // already Closed are legitimate carry-over sources — anything else is
+  // either a different ticket's history or not actually "carried" yet.
+  const carryCandidates = entries.filter(
+    (e) =>
+      e.id !== entry?.id &&
+      e.ticketId === ticketId &&
+      e.status === 'NotDone' &&
+      sprints.find((s) => s.id === e.sprintId)?.status === 'Closed',
+  );
+
+  useEffect(() => {
+    if (!open || carriedFromTouched || carriedFrom !== NONE) return;
+    if (carryCandidates.length === 1) {
+      setCarriedFrom(String(carryCandidates[0].id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, ticketId, carriedFromTouched, carriedFrom, carryCandidates.length]);
 
   function ticketLabel(id: number) {
     return tickets.find((t) => t.id === id)?.title ?? `Ticket #${id}`;
@@ -110,8 +131,6 @@ function EntryFormDialog({
       setPending(false);
     }
   }
-
-  const carryCandidates = entries.filter((e) => e.id !== entry?.id);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -190,7 +209,15 @@ function EntryFormDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="entry-carried-from">Carried from</Label>
-            <Select id="entry-carried-from" value={carriedFrom} onChange={(e) => setCarriedFrom(e.target.value)} disabled={locked}>
+            <Select
+              id="entry-carried-from"
+              value={carriedFrom}
+              onChange={(e) => {
+                setCarriedFrom(e.target.value);
+                setCarriedFromTouched(true);
+              }}
+              disabled={locked}
+            >
               <option value={NONE}>None</option>
               {carryCandidates.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -271,6 +298,21 @@ export default function SprintEntriesPage() {
     Cancelled: 'secondary',
   };
 
+  // A NotDone entry whose sprint has closed should have gotten a carry-over
+  // entry in a later sprint by now. One still missing means either the
+  // carry-over was never created, or was created without linking carriedFrom
+  // back to this entry — both silently break carry-over/planning metrics.
+  const orphanedCarryOvers = (entries ?? []).filter((e) => {
+    if (e.status !== 'NotDone') return false;
+    const sprint = sprints.find((s) => s.id === e.sprintId);
+    if (!sprint || sprint.status !== 'Closed') return false;
+    return !(entries ?? []).some((other) => {
+      if (other.ticketId !== e.ticketId) return false;
+      const otherSprint = sprints.find((s) => s.id === other.sprintId);
+      return !!otherSprint && otherSprint.startDate > sprint.startDate;
+    });
+  });
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
@@ -286,6 +328,22 @@ export default function SprintEntriesPage() {
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {orphanedCarryOvers.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+          <p className="font-medium">
+            {orphanedCarryOvers.length} ticket{orphanedCarryOvers.length > 1 ? 's' : ''} still NotDone in a closed
+            sprint with no carry-over entry yet:
+          </p>
+          <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
+            {orphanedCarryOvers.map((e) => (
+              <li key={e.id}>
+                {ticketTitle(e.ticketId)} — {sprintName(e.sprintId)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-0">

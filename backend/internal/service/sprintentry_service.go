@@ -49,8 +49,40 @@ func validateEntryFields(ticketID, sprintID int64, status model.EntryStatus, poi
 	return nil
 }
 
+// validateCarriedFrom enforces that a carriedFrom reference actually denotes
+// a carry-over: the same ticket's own NotDone entry from a sprint that has
+// already closed. Without this, carriedFrom is just an unchecked foreign key
+// and can point at an unrelated ticket, a Done/Cancelled entry, or an entry
+// in a still-open sprint — silently corrupting carry-over metrics.
+func (s *SprintEntryService) validateCarriedFrom(ctx context.Context, ticketID int64, carriedFrom *int64) error {
+	if carriedFrom == nil {
+		return nil
+	}
+	source, err := s.repo.Get(ctx, *carriedFrom)
+	if err != nil {
+		return fmt.Errorf("%w: carriedFrom entry %d not found", apperr.ErrValidation, *carriedFrom)
+	}
+	if source.TicketID != ticketID {
+		return fmt.Errorf("%w: carriedFrom entry %d belongs to a different ticket", apperr.ErrValidation, *carriedFrom)
+	}
+	if source.Status != model.EntryNotDone {
+		return fmt.Errorf("%w: carriedFrom entry %d must have status NotDone", apperr.ErrValidation, *carriedFrom)
+	}
+	sourceSprint, err := s.sprints.Get(ctx, source.SprintID)
+	if err != nil {
+		return fmt.Errorf("%w: carriedFrom entry %d's sprint not found", apperr.ErrValidation, *carriedFrom)
+	}
+	if sourceSprint.Status != model.SprintClosed {
+		return fmt.Errorf("%w: carriedFrom entry %d's sprint must be Closed", apperr.ErrValidation, *carriedFrom)
+	}
+	return nil
+}
+
 func (s *SprintEntryService) Create(ctx context.Context, ticketID, sprintID int64, status model.EntryStatus, addedAfterStart bool, carriedFrom *int64, points int) (*model.SprintEntry, error) {
 	if err := validateEntryFields(ticketID, sprintID, status, points); err != nil {
+		return nil, err
+	}
+	if err := s.validateCarriedFrom(ctx, ticketID, carriedFrom); err != nil {
 		return nil, err
 	}
 	e := &model.SprintEntry{
@@ -84,6 +116,9 @@ func (s *SprintEntryService) Update(ctx context.Context, id int64, status model.
 		return nil, err
 	}
 	if err := validateEntryFields(existing.TicketID, existing.SprintID, status, points); err != nil {
+		return nil, err
+	}
+	if err := s.validateCarriedFrom(ctx, existing.TicketID, carriedFrom); err != nil {
 		return nil, err
 	}
 
