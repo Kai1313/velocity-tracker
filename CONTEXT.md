@@ -9,6 +9,7 @@ A lightweight grouping that every `Ticket` belongs to (e.g. "Website Redesign", 
 
 **Ticket**:
 The stable record of a piece of work: id, title, story points, owning project. Attributes that don't change across sprints.
+_Note_: `title` is not guaranteed unique across `Project`s — two projects can independently reuse the same numbering scheme (e.g. both landing on `2026_07_FEATURE_110`). Anywhere a ticket is identified by title alone, prefix it with its project name to stay unambiguous; see the Admin UI section below for where this actually matters today.
 
 **SprintEntry**:
 One row per sprint that a Ticket appears in. Holds the per-sprint snapshot: status (Done / Not Done / Cancelled), whether it was added after sprint start, and — if carried over — a `carried-from` reference to the SprintEntry it continued from. A ticket that spans 3 sprints has 3 SprintEntry rows, one per sprint, so each sprint's history stays immutable once that sprint closes.
