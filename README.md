@@ -86,6 +86,8 @@ Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](C
 
 Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a theme toggle in the top-right corner. It cycles Light → Dark → System; System follows the OS preference and is the default on first visit, with the chosen theme persisted across visits. The header also links to `/admin/users` for data entry.
 
+Each page also shows a Workload-vs-Done grouped bar chart above its table — per sprint on `/dashboard`, per developer on `/dashboard/{sprintId}` — built on [Recharts](https://recharts.org) via the shared `WorkloadDoneChart` component (`frontend/components/dashboard/workload-done-chart.tsx`). The two series colors are defined as `--chart-workload`/`--chart-done` CSS custom properties in `globals.css` (separate light/dark values) rather than hardcoded in the component, and were validated colorblind-safe against this app's actual card surfaces before being chosen — see the `dataviz` skill if you add another chart here. Charts are additive: the tables underneath still carry the exact numbers and are what a table-view/accessibility fallback reads.
+
 ## Admin UI
 
 `/admin` is where `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` records actually get created — there's no other way to populate the app's data short of calling the API directly. All five entities are implemented (`/admin/users`, `/admin/projects`, `/admin/tickets`, `/admin/sprints`, `/admin/sprint-entries`).
