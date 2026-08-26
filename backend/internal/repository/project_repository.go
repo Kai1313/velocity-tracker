@@ -36,7 +36,7 @@ func (r *ProjectRepository) Get(ctx context.Context, id int64) (*model.Project, 
 }
 
 func (r *ProjectRepository) List(ctx context.Context) ([]model.Project, error) {
-	rows, err := r.db.Query(ctx, `SELECT id, name, status FROM project ORDER BY id`)
+	rows, err := r.db.Query(ctx, `SELECT id, name, status FROM project ORDER BY LOWER(name)`)
 	if err != nil {
 		return nil, wrapReadErr(err)
 	}
