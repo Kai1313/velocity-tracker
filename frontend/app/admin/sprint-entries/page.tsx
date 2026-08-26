@@ -26,25 +26,39 @@ import {
   deleteSprintEntry,
   listTickets,
   listSprints,
+  listProjects,
   type SprintEntry,
   type TicketDetail,
   type Sprint,
+  type Project,
   type EntryStatus,
 } from '@/lib/api';
 
 const NONE = 'none';
+
+// Ticket titles (e.g. "2026_07_FEATURE_110") aren't unique across projects,
+// so every ticket reference on this page is prefixed with its project name
+// to stay unambiguous once two projects reuse the same ticket number.
+function ticketLabel(id: number, tickets: TicketDetail[], projects: Project[]) {
+  const t = tickets.find((t) => t.id === id);
+  if (!t) return `Ticket #${id}`;
+  const project = projects.find((p) => p.id === t.projectId)?.name ?? `Project #${t.projectId}`;
+  return `${project} - ${t.title}`;
+}
 
 function EntryFormDialog({
   entry,
   entries,
   tickets,
   sprints,
+  projects,
   onSaved,
 }: {
   entry?: SprintEntry;
   entries: SprintEntry[];
   tickets: TicketDetail[];
   sprints: Sprint[];
+  projects: Project[];
   onSaved: (entry: SprintEntry) => void;
 }) {
   const isEdit = entry !== undefined;
@@ -104,9 +118,6 @@ function EntryFormDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ticketId, carriedFromTouched, carriedFrom, carryCandidates.length]);
 
-  function ticketLabel(id: number) {
-    return tickets.find((t) => t.id === id)?.title ?? `Ticket #${id}`;
-  }
   function sprintLabel(id: number) {
     return sprints.find((s) => s.id === id)?.name ?? `Sprint #${id}`;
   }
@@ -158,8 +169,8 @@ function EntryFormDialog({
           <DialogTitle>{isEdit ? 'Edit sprint entry' : 'Add sprint entry'}</DialogTitle>
           {isEdit && entry && (
             <DialogDescription>
-              {ticketLabel(entry.ticketId)} in {sprintLabel(entry.sprintId)}. Ticket and sprint can&apos;t be changed
-              after creation.
+              {ticketLabel(entry.ticketId, tickets, projects)} in {sprintLabel(entry.sprintId)}. Ticket and sprint
+              can&apos;t be changed after creation.
             </DialogDescription>
           )}
         </DialogHeader>
@@ -180,7 +191,7 @@ function EntryFormDialog({
                 >
                   {tickets.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.title}
+                      {ticketLabel(t.id, tickets, projects)}
                     </option>
                   ))}
                 </Select>
@@ -231,7 +242,7 @@ function EntryFormDialog({
               <option value={NONE}>None</option>
               {carryCandidates.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {ticketLabel(c.ticketId)} @ {sprintLabel(c.sprintId)} ({c.status})
+                  {ticketLabel(c.ticketId, tickets, projects)} @ {sprintLabel(c.sprintId)} ({c.status})
                 </option>
               ))}
             </Select>
@@ -267,14 +278,16 @@ export default function SprintEntriesPage() {
   const [entries, setEntries] = useState<SprintEntry[] | null>(null);
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listSprintEntries(), listTickets(), listSprints()])
-      .then(([e, t, s]) => {
+    Promise.all([listSprintEntries(), listTickets(), listSprints(), listProjects()])
+      .then(([e, t, s, p]) => {
         setEntries(e);
         setTickets(t);
         setSprints(s);
+        setProjects(p);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sprint entries'));
   }, []);
@@ -292,9 +305,6 @@ export default function SprintEntriesPage() {
     setEntries((prev) => prev?.filter((e) => e.id !== id) ?? null);
   }
 
-  function ticketTitle(id: number) {
-    return tickets.find((t) => t.id === id)?.title ?? `#${id}`;
-  }
   function sprintName(id: number) {
     return sprints.find((s) => s.id === id)?.name ?? `#${id}`;
   }
@@ -334,7 +344,7 @@ export default function SprintEntriesPage() {
               : "One row per sprint a ticket appears in. Closing a sprint locks its entries against further edits."}
           </p>
         </div>
-        <EntryFormDialog entries={entries ?? []} tickets={tickets} sprints={sprints} onSaved={upsert} />
+        <EntryFormDialog entries={entries ?? []} tickets={tickets} sprints={sprints} projects={projects} onSaved={upsert} />
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -348,7 +358,7 @@ export default function SprintEntriesPage() {
           <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
             {orphanedCarryOvers.map((e) => (
               <li key={e.id}>
-                {ticketTitle(e.ticketId)} — {sprintName(e.sprintId)}
+                {ticketLabel(e.ticketId, tickets, projects)} — {sprintName(e.sprintId)}
               </li>
             ))}
           </ul>
@@ -378,7 +388,7 @@ export default function SprintEntriesPage() {
               )}
               {entries?.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="font-medium">{ticketTitle(e.ticketId)}</TableCell>
+                  <TableCell className="font-medium">{ticketLabel(e.ticketId, tickets, projects)}</TableCell>
                   <TableCell className="text-muted-foreground">{sprintName(e.sprintId)}</TableCell>
                   <TableCell>
                     <Badge variant={statusVariant[e.status]}>{e.status}</Badge>
@@ -389,9 +399,16 @@ export default function SprintEntriesPage() {
                     {sprintClosed(e.sprintId) && <Badge variant="outline">Locked</Badge>}
                   </TableCell>
                   <TableCell className="flex justify-end gap-1">
-                    <EntryFormDialog entry={e} entries={entries ?? []} tickets={tickets} sprints={sprints} onSaved={upsert} />
+                    <EntryFormDialog
+                      entry={e}
+                      entries={entries ?? []}
+                      tickets={tickets}
+                      sprints={sprints}
+                      projects={projects}
+                      onSaved={upsert}
+                    />
                     <DeleteConfirmButton
-                      entityLabel={`${ticketTitle(e.ticketId)} @ ${sprintName(e.sprintId)}`}
+                      entityLabel={`${ticketLabel(e.ticketId, tickets, projects)} @ ${sprintName(e.sprintId)}`}
                       onDelete={() => handleDelete(e.id)}
                     />
                   </TableCell>
