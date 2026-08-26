@@ -78,7 +78,7 @@ All endpoints are JSON, `camelCase` in and out, no authentication in MVP. CORS i
 
 See [ADR-0004](docs/adr/0004-dashboard-v1-simplified-metrics.md) for why these are simpler "workload vs. done" totals rather than the full Sprint Velocity/Planning Accuracy model from [CONTEXT.md](CONTEXT.md).
 
-Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](CONTEXT.md#close-sprint)), and the Committed/Late-Add split, Planning Accuracy, and Late-Add Rate calculations.
+Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](CONTEXT.md#close-sprint)), and the Committed/Late-Add split, Planning Accuracy, and Late-Add Rate calculations. List endpoints (`GET /tickets`, `/sprint-entries`, `/projects`, `/users`) are also unpaginated — deliberately deferred rather than built speculatively; revisit once an admin list is actually slow to load, not before.
 
 ## Dashboard UI
 
