@@ -87,7 +87,17 @@ function EntryFormDialog({
   );
 
   useEffect(() => {
-    if (!open || carriedFromTouched || carriedFrom !== NONE) return;
+    if (!open) return;
+    // Switching the Ticket dropdown (create mode) leaves a stale carriedFrom
+    // pointing at the previous ticket's entry — it won't be in this ticket's
+    // candidate list, so drop it and let the fill-in below reconsider.
+    const stillValid = carriedFrom === NONE || carryCandidates.some((c) => String(c.id) === carriedFrom);
+    if (!stillValid) {
+      setCarriedFrom(NONE);
+      setCarriedFromTouched(false);
+      return;
+    }
+    if (carriedFromTouched || carriedFrom !== NONE) return;
     if (carryCandidates.length === 1) {
       setCarriedFrom(String(carryCandidates[0].id));
     }
