@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
 import { getSprintSummaries, type SprintSummary } from '@/lib/api';
 
 function completionBadge(summary: SprintSummary) {
@@ -52,6 +53,19 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {summaries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Workload vs. done, per sprint</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WorkloadDoneChart
+              data={summaries.map((s) => ({ category: s.sprintName, workload: s.workloadPoints, done: s.donePoints }))}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-0">

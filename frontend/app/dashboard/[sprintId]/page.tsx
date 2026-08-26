@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
 import { getSprint, getSprintDeveloperBreakdown } from '@/lib/api';
 
 export default async function SprintDashboardPage({
@@ -57,6 +58,19 @@ export default async function SprintDashboardPage({
           </CardContent>
         </Card>
       </div>
+
+      {breakdown.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Workload vs. done, per developer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WorkloadDoneChart
+              data={breakdown.map((d) => ({ category: d.name, workload: d.workloadPoints, done: d.donePoints }))}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
