@@ -36,7 +36,7 @@ func (r *UserRepository) Get(ctx context.Context, id int64) (*model.User, error)
 }
 
 func (r *UserRepository) List(ctx context.Context) ([]model.User, error) {
-	rows, err := r.db.Query(ctx, `SELECT id, name, role FROM users ORDER BY id`)
+	rows, err := r.db.Query(ctx, `SELECT id, name, role FROM users ORDER BY LOWER(name)`)
 	if err != nil {
 		return nil, wrapReadErr(err)
 	}

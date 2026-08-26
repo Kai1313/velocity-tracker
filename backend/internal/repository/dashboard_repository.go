@@ -64,7 +64,7 @@ func (r *DashboardRepository) DeveloperBreakdown(ctx context.Context, sprintID i
 		LEFT JOIN users u ON u.id = t.assignee_id
 		WHERE se.sprint_id = $1 AND se.status <> 'Cancelled'
 		GROUP BY u.id, u.name
-		ORDER BY name
+		ORDER BY LOWER(name)
 	`, sprintID)
 	if err != nil {
 		return nil, wrapReadErr(err)
