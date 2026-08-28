@@ -8,6 +8,7 @@ import (
 
 	"velocity-tracker/backend/internal/apperr"
 	"velocity-tracker/backend/internal/model"
+	"velocity-tracker/backend/internal/repository"
 	"velocity-tracker/backend/internal/service"
 )
 
@@ -38,7 +39,7 @@ func (f *fakeSprintEntryRepo) Get(ctx context.Context, id int64) (*model.SprintE
 	return &cp, nil
 }
 
-func (f *fakeSprintEntryRepo) List(ctx context.Context) ([]model.SprintEntry, error) {
+func (f *fakeSprintEntryRepo) List(ctx context.Context, filter repository.SprintEntryFilter) ([]model.SprintEntry, error) {
 	var out []model.SprintEntry
 	for _, e := range f.entries {
 		out = append(out, *e)

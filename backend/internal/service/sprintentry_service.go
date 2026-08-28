@@ -6,12 +6,13 @@ import (
 
 	"velocity-tracker/backend/internal/apperr"
 	"velocity-tracker/backend/internal/model"
+	"velocity-tracker/backend/internal/repository"
 )
 
 type SprintEntryRepository interface {
 	Create(ctx context.Context, e *model.SprintEntry) error
 	Get(ctx context.Context, id int64) (*model.SprintEntry, error)
-	List(ctx context.Context) ([]model.SprintEntry, error)
+	List(ctx context.Context, f repository.SprintEntryFilter) ([]model.SprintEntry, error)
 	Update(ctx context.Context, e *model.SprintEntry) error
 	Delete(ctx context.Context, id int64) error
 }
@@ -103,8 +104,8 @@ func (s *SprintEntryService) Get(ctx context.Context, id int64) (*model.SprintEn
 	return s.repo.Get(ctx, id)
 }
 
-func (s *SprintEntryService) List(ctx context.Context) ([]model.SprintEntry, error) {
-	return s.repo.List(ctx)
+func (s *SprintEntryService) List(ctx context.Context, f repository.SprintEntryFilter) ([]model.SprintEntry, error) {
+	return s.repo.List(ctx, f)
 }
 
 // Update rejects edits once the entry's parent sprint is Closed — a closed

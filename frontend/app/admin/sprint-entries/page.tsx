@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -32,9 +33,11 @@ import {
   type Sprint,
   type Project,
   type EntryStatus,
+  type SprintEntryFilter,
 } from '@/lib/api';
 
 const NONE = 'none';
+const ALL = 'all';
 
 // Ticket titles (e.g. "2026_07_FEATURE_110") aren't unique across projects,
 // so every ticket reference on this page is prefixed with its project name
@@ -274,17 +277,36 @@ function EntryFormDialog({
   );
 }
 
-export default function SprintEntriesPage() {
-  const [entries, setEntries] = useState<SprintEntry[] | null>(null);
+function SprintEntriesPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // allEntries is unfiltered — the orphaned-carry-over check and the create/edit
+  // dialog's "Carried from" candidates both need to see a ticket's entries across
+  // every sprint, not just whichever one the table is currently filtered to.
+  const [allEntries, setAllEntries] = useState<SprintEntry[] | null>(null);
+  const [filteredEntries, setFilteredEntries] = useState<SprintEntry[] | null>(null);
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const sprintIdParam = searchParams.get('sprintId');
+  const projectIdParam = searchParams.get('projectId');
+  const statusParam = searchParams.get('status');
+  const carriedOverParam = searchParams.get('carriedOver') === 'true';
+  const searchParam = searchParams.get('search') ?? '';
+
+  const [searchInput, setSearchInput] = useState(searchParam);
+
+  useEffect(() => {
+    setSearchInput(searchParam);
+  }, [searchParam]);
+
   useEffect(() => {
     Promise.all([listSprintEntries(), listTickets(), listSprints(), listProjects()])
       .then(([e, t, s, p]) => {
-        setEntries(e);
+        setAllEntries(e);
         setTickets(t);
         setSprints(s);
         setProjects(p);
@@ -292,17 +314,74 @@ export default function SprintEntriesPage() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sprint entries'));
   }, []);
 
+  // Land on the currently-open sprint by default, since "entries for a specific
+  // sprint" is the most common lookup — but only on the very first load with
+  // nothing in the URL yet. This must apply once, not every time sprintId
+  // becomes empty, or it would fight "Clear filters" and re-add itself.
+  const appliedDefaultSprint = useRef(false);
+  useEffect(() => {
+    if (appliedDefaultSprint.current || sprints.length === 0) return;
+    appliedDefaultSprint.current = true;
+    if (sprintIdParam !== null) return;
+    const open = sprints.find((s) => s.status === 'Open');
+    if (!open) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('sprintId', String(open.id));
+    router.replace(`?${params.toString()}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sprints, sprintIdParam]);
+
+  function currentFilter(): SprintEntryFilter {
+    return {
+      sprintId: sprintIdParam ? Number(sprintIdParam) : undefined,
+      projectId: projectIdParam ? Number(projectIdParam) : undefined,
+      status: (statusParam as EntryStatus) || undefined,
+      carriedOver: carriedOverParam || undefined,
+      search: searchParam || undefined,
+    };
+  }
+
+  function refetchFiltered() {
+    listSprintEntries(currentFilter())
+      .then(setFilteredEntries)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sprint entries'));
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refetchFiltered, [sprintIdParam, projectIdParam, statusParam, carriedOverParam, searchParam]);
+
+  function setParam(key: string, value: string | null) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === null || value === '') {
+      params.delete(key);
+    } else {
+      params.set(key, value);
+    }
+    router.replace(`?${params.toString()}`);
+  }
+
+  // Debounce the search box so typing doesn't hit the URL/API on every keystroke.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      if (searchInput !== searchParam) setParam('search', searchInput || null);
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
+
   function upsert(entry: SprintEntry) {
-    setEntries((prev) => {
+    setAllEntries((prev) => {
       if (!prev) return [entry];
       const exists = prev.some((e) => e.id === entry.id);
       return exists ? prev.map((e) => (e.id === entry.id ? entry : e)) : [...prev, entry];
     });
+    refetchFiltered();
   }
 
   async function handleDelete(id: number) {
     await deleteSprintEntry(id);
-    setEntries((prev) => prev?.filter((e) => e.id !== id) ?? null);
+    setAllEntries((prev) => prev?.filter((e) => e.id !== id) ?? null);
+    refetchFiltered();
   }
 
   function sprintName(id: number) {
@@ -322,16 +401,25 @@ export default function SprintEntriesPage() {
   // entry in a later sprint by now. One still missing means either the
   // carry-over was never created, or was created without linking carriedFrom
   // back to this entry — both silently break carry-over/planning metrics.
-  const orphanedCarryOvers = (entries ?? []).filter((e) => {
+  // Computed from allEntries (not the filtered table) since "is there a later
+  // entry" is inherently a cross-sprint question.
+  const orphanedCarryOvers = (allEntries ?? []).filter((e) => {
     if (e.status !== 'NotDone') return false;
     const sprint = sprints.find((s) => s.id === e.sprintId);
     if (!sprint || sprint.status !== 'Closed') return false;
-    return !(entries ?? []).some((other) => {
+    return !(allEntries ?? []).some((other) => {
       if (other.ticketId !== e.ticketId) return false;
       const otherSprint = sprints.find((s) => s.id === other.sprintId);
       return !!otherSprint && otherSprint.startDate > sprint.startDate;
     });
   });
+  // The warning scopes to whichever sprint the table is currently filtered to,
+  // rather than always listing every closed sprint's orphans at once.
+  const visibleOrphans = sprintIdParam
+    ? orphanedCarryOvers.filter((e) => e.sprintId === Number(sprintIdParam))
+    : orphanedCarryOvers;
+
+  const hasActiveFilters = Boolean(sprintIdParam || projectIdParam || statusParam || carriedOverParam || searchParam);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -344,19 +432,95 @@ export default function SprintEntriesPage() {
               : "One row per sprint a ticket appears in. Closing a sprint locks its entries against further edits."}
           </p>
         </div>
-        <EntryFormDialog entries={entries ?? []} tickets={tickets} sprints={sprints} projects={projects} onSaved={upsert} />
+        <EntryFormDialog entries={allEntries ?? []} tickets={tickets} sprints={sprints} projects={projects} onSaved={upsert} />
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      {orphanedCarryOvers.length > 0 && (
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 p-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-sprint">Sprint</Label>
+            <Select
+              id="filter-sprint"
+              value={sprintIdParam ?? ALL}
+              onChange={(e) => setParam('sprintId', e.target.value === ALL ? null : e.target.value)}
+            >
+              <option value={ALL}>All sprints</option>
+              {sprints.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.status})
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-project">Project</Label>
+            <Select
+              id="filter-project"
+              value={projectIdParam ?? ALL}
+              onChange={(e) => setParam('projectId', e.target.value === ALL ? null : e.target.value)}
+            >
+              <option value={ALL}>All projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-status">Status</Label>
+            <Select
+              id="filter-status"
+              value={statusParam ?? ALL}
+              onChange={(e) => setParam('status', e.target.value === ALL ? null : e.target.value)}
+            >
+              <option value={ALL}>All statuses</option>
+              <option value="Done">Done</option>
+              <option value="NotDone">NotDone</option>
+              <option value="Cancelled">Cancelled</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-search">Search ticket</Label>
+            <Input
+              id="filter-search"
+              placeholder="Ticket title…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-48"
+            />
+          </div>
+          <label className="flex items-center gap-2 pb-2 text-sm">
+            <input
+              type="checkbox"
+              checked={carriedOverParam}
+              onChange={(e) => setParam('carriedOver', e.target.checked ? 'true' : null)}
+              className="h-4 w-4 rounded border-border"
+            />
+            Carried-over only
+          </label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!hasActiveFilters}
+            onClick={() => router.replace('?')}
+          >
+            Clear filters
+          </Button>
+        </CardContent>
+      </Card>
+
+      {visibleOrphans.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
           <p className="font-medium">
-            {orphanedCarryOvers.length} ticket{orphanedCarryOvers.length > 1 ? 's' : ''} still NotDone in a closed
-            sprint with no carry-over entry yet:
+            {visibleOrphans.length} ticket{visibleOrphans.length > 1 ? 's' : ''} still NotDone in a closed sprint
+            with no carry-over entry yet:
           </p>
           <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
-            {orphanedCarryOvers.map((e) => (
+            {visibleOrphans.map((e) => (
               <li key={e.id}>
                 {ticketLabel(e.ticketId, tickets, projects)} — {sprintName(e.sprintId)}
               </li>
@@ -379,14 +543,14 @@ export default function SprintEntriesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries?.length === 0 && (
+              {filteredEntries?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No sprint entries yet.
+                    {hasActiveFilters ? 'No entries match these filters.' : 'No sprint entries yet.'}
                   </TableCell>
                 </TableRow>
               )}
-              {entries?.map((e) => (
+              {filteredEntries?.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="font-medium">{ticketLabel(e.ticketId, tickets, projects)}</TableCell>
                   <TableCell className="text-muted-foreground">{sprintName(e.sprintId)}</TableCell>
@@ -401,7 +565,7 @@ export default function SprintEntriesPage() {
                   <TableCell className="flex justify-end gap-1">
                     <EntryFormDialog
                       entry={e}
-                      entries={entries ?? []}
+                      entries={allEntries ?? []}
                       tickets={tickets}
                       sprints={sprints}
                       projects={projects}
@@ -419,5 +583,13 @@ export default function SprintEntriesPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SprintEntriesPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-5xl p-6 text-sm text-muted-foreground">Loading…</div>}>
+      <SprintEntriesPageInner />
+    </Suspense>
   );
 }

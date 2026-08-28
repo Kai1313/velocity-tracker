@@ -184,8 +184,23 @@ export function deleteSprint(id: number) {
   return requestJSON<void>('DELETE', `/sprints/${id}`);
 }
 
-export function listSprintEntries() {
-  return requestJSON<SprintEntry[]>('GET', '/sprint-entries');
+export type SprintEntryFilter = {
+  sprintId?: number;
+  projectId?: number;
+  status?: EntryStatus;
+  carriedOver?: boolean;
+  search?: string;
+};
+
+export function listSprintEntries(filter: SprintEntryFilter = {}) {
+  const params = new URLSearchParams();
+  if (filter.sprintId != null) params.set('sprintId', String(filter.sprintId));
+  if (filter.projectId != null) params.set('projectId', String(filter.projectId));
+  if (filter.status) params.set('status', filter.status);
+  if (filter.carriedOver) params.set('carriedOver', 'true');
+  if (filter.search) params.set('search', filter.search);
+  const qs = params.toString();
+  return requestJSON<SprintEntry[]>('GET', `/sprint-entries${qs ? `?${qs}` : ''}`);
 }
 
 export type SprintEntryCreateInput = {

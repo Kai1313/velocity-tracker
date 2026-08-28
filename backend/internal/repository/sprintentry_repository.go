@@ -2,11 +2,24 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
 	"velocity-tracker/backend/internal/model"
 )
+
+// SprintEntryFilter narrows List to matching rows; a nil field means that
+// dimension is unfiltered. ProjectID and Search both require joining ticket,
+// so the query only adds that join when at least one of them is set.
+type SprintEntryFilter struct {
+	SprintID        *int64
+	ProjectID       *int64
+	Status          *model.EntryStatus
+	CarriedOverOnly bool
+	Search          *string
+}
 
 type SprintEntryRepository struct {
 	db dbtx
@@ -37,10 +50,42 @@ func (r *SprintEntryRepository) Get(ctx context.Context, id int64) (*model.Sprin
 	return e, nil
 }
 
-func (r *SprintEntryRepository) List(ctx context.Context) ([]model.SprintEntry, error) {
-	rows, err := r.db.Query(ctx,
-		`SELECT id, ticket_id, sprint_id, status, added_after_sprint_start, carried_from, points_at_entry, created_at
-		 FROM sprint_entry ORDER BY id`)
+func (r *SprintEntryRepository) List(ctx context.Context, f SprintEntryFilter) ([]model.SprintEntry, error) {
+	query := `SELECT se.id, se.ticket_id, se.sprint_id, se.status, se.added_after_sprint_start, se.carried_from, se.points_at_entry, se.created_at
+		 FROM sprint_entry se`
+
+	needsTicketJoin := f.ProjectID != nil || f.Search != nil
+	if needsTicketJoin {
+		query += ` JOIN ticket t ON t.id = se.ticket_id`
+	}
+
+	var conditions []string
+	var args []any
+	if f.SprintID != nil {
+		args = append(args, *f.SprintID)
+		conditions = append(conditions, fmt.Sprintf("se.sprint_id = $%d", len(args)))
+	}
+	if f.ProjectID != nil {
+		args = append(args, *f.ProjectID)
+		conditions = append(conditions, fmt.Sprintf("t.project_id = $%d", len(args)))
+	}
+	if f.Status != nil {
+		args = append(args, *f.Status)
+		conditions = append(conditions, fmt.Sprintf("se.status = $%d", len(args)))
+	}
+	if f.CarriedOverOnly {
+		conditions = append(conditions, "se.carried_from IS NOT NULL")
+	}
+	if f.Search != nil && *f.Search != "" {
+		args = append(args, "%"+*f.Search+"%")
+		conditions = append(conditions, fmt.Sprintf("t.title ILIKE $%d", len(args)))
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY se.id"
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, wrapReadErr(err)
 	}
