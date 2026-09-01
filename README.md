@@ -23,10 +23,10 @@ The backend can be run directly on the host (`go run ./cmd/server` from `backend
 ```bash
 docker compose up postgres
 cd backend
-DATABASE_URL="postgres://velo:velo@localhost:5432/velocity_tracker?sslmode=disable" go run ./cmd/server
+DATABASE_URL="postgres://velo:velo@localhost:5439/velocity_tracker?sslmode=disable" go run ./cmd/server
 ```
 
-Note the hostname difference: `.env`'s `DATABASE_URL` uses `postgres` (the Docker Compose service name), which only resolves *inside* the Compose network. Anything running on the host — including tests — needs `localhost` instead.
+Note the hostname difference: `.env`'s `DATABASE_URL` uses `postgres` (the Docker Compose service name), which only resolves *inside* the Compose network. Anything running on the host — including tests — needs `localhost` instead, and the host-mapped port (`5439` by default, overridable via `POSTGRES_PORT`) rather than Postgres's usual `5432`, chosen to avoid colliding with a local Postgres already on `5432`.
 
 ## Testing the backend
 
@@ -40,7 +40,7 @@ Unit tests (service-layer business rules, plus the CORS middleware in `internal/
 ```bash
 docker compose up postgres
 cd backend
-TEST_DATABASE_URL="postgres://velo:velo@localhost:5432/velocity_tracker?sslmode=disable" go test ./...
+TEST_DATABASE_URL="postgres://velo:velo@localhost:5439/velocity_tracker?sslmode=disable" go test ./...
 ```
 
 ## Running the frontend
@@ -75,6 +75,7 @@ All endpoints are JSON, `camelCase` in and out, no authentication in MVP. CORS i
 **Dashboard** (read-only, computed server-side):
 - `GET /dashboard/sprints` — workload/done story points per sprint, across all sprints
 - `GET /dashboard/sprints/{id}` — workload/done story points per developer, within one sprint
+- `GET /dashboard/sprints/{id}/entries` — that sprint's ticket-level entries, pre-joined with ticket/project/assignee names and split into `current` (freshly planned) and `carriedOver` (continuing a prior sprint's unfinished entry, with the origin sprint's name resolved one hop back via `carriedFrom`)
 
 See [ADR-0004](docs/adr/0004-dashboard-v1-simplified-metrics.md) for why these are simpler "workload vs. done" totals rather than the full Sprint Velocity/Planning Accuracy model from [CONTEXT.md](CONTEXT.md).
 
@@ -82,7 +83,7 @@ Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](C
 
 ## Dashboard UI
 
-`/dashboard` shows all sprints with workload/done totals; clicking a sprint links to `/dashboard/{sprintId}` for its per-developer breakdown. Built with [shadcn/ui](https://ui.shadcn.com) (`Card`/`Table`/`Badge`) — component source lives in `frontend/components/ui/`, not an npm package, so it can be edited directly. To add more shadcn components later: `npx shadcn@latest add <component>` from `frontend/`.
+`/dashboard` shows all sprints with workload/done totals; clicking a sprint links to `/dashboard/{sprintId}` for its per-developer breakdown, followed by two read-only ticket tables — "Current sprint tickets" and "Carried over tickets" — driven by `GET /dashboard/sprints/{id}/entries`. Every ticket in the sprint lands in exactly one of the two, split by whether its entry names a carried-from sprint; Cancelled entries are shown (unlike the aggregate totals above them, this is a plain listing of what's in the sprint, not a metrics computation). Built with [shadcn/ui](https://ui.shadcn.com) (`Card`/`Table`/`Badge`) — component source lives in `frontend/components/ui/`, not an npm package, so it can be edited directly. To add more shadcn components later: `npx shadcn@latest add <component>` from `frontend/`.
 
 Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a theme toggle in the top-right corner. It cycles Light → Dark → System; System follows the OS preference and is the default on first visit, with the chosen theme persisted across visits. The header also links to `/admin/users` for data entry.
 
