@@ -36,3 +36,17 @@ func (h *DashboardHandler) SprintDeveloperBreakdown(w http.ResponseWriter, r *ht
 	}
 	writeJSON(w, http.StatusOK, breakdown)
 }
+
+func (h *DashboardHandler) SprintTicketBreakdown(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(r)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return
+	}
+	breakdown, err := h.svc.SprintTicketBreakdown(r.Context(), id)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, breakdown)
+}

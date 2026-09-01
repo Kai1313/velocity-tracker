@@ -28,7 +28,7 @@ export type ApiProject = { id: number; name: string; status: 'Active' | 'Archive
 export type ApiUser = { id: number; name: string; role: 'Lead' | 'Developer' };
 export type ApiTicket = { id: number; projectId: number; title: string; storyPoints: number; assigneeId: number | null };
 export type ApiSprint = { id: number; name: string; startDate: string; endDate: string; status: 'Open' | 'Closed' };
-export type ApiSprintEntry = { id: number; ticketId: number; sprintId: number };
+export type ApiSprintEntry = { id: number; ticketId: number; sprintId: number; carriedFrom: number | null };
 
 export const api = {
   createProject: (name: string) => request<ApiProject>('POST', '/projects', { name }),
@@ -56,13 +56,18 @@ export const api = {
     }),
   deleteSprint: (id: number) => request<void>('DELETE', `/sprints/${id}`),
 
-  createSprintEntry: (ticketId: number, sprintId: number, pointsAtEntry: number) =>
+  createSprintEntry: (
+    ticketId: number,
+    sprintId: number,
+    pointsAtEntry: number,
+    opts?: { status?: 'Done' | 'NotDone' | 'Cancelled'; carriedFrom?: number | null },
+  ) =>
     request<ApiSprintEntry>('POST', '/sprint-entries', {
       ticketId,
       sprintId,
-      status: 'NotDone',
+      status: opts?.status ?? 'NotDone',
       addedAfterSprintStart: false,
-      carriedFrom: null,
+      carriedFrom: opts?.carriedFrom ?? null,
       pointsAtEntry,
     }),
   deleteSprintEntry: (id: number) => request<void>('DELETE', `/sprint-entries/${id}`),
@@ -71,12 +76,15 @@ export const api = {
 
 // Deletes any sprint-entries referencing the given ticket/sprint ids first,
 // so the subsequent ticket/sprint deletes don't fail on the FK constraint.
+// Carry-over entries (carriedFrom set) are deleted before the origin entries
+// they point to, so a carried-over fixture doesn't fail on the
+// sprint_entry_carried_from_fkey constraint.
 export async function deleteEntriesReferencing(ticketIds: number[], sprintIds: number[]) {
   const entries = await api.listSprintEntries();
-  for (const e of entries) {
-    if (ticketIds.includes(e.ticketId) || sprintIds.includes(e.sprintId)) {
-      await api.deleteSprintEntry(e.id);
-    }
+  const matching = entries.filter((e) => ticketIds.includes(e.ticketId) || sprintIds.includes(e.sprintId));
+  const [carriedOver, origins] = [matching.filter((e) => e.carriedFrom !== null), matching.filter((e) => e.carriedFrom === null)];
+  for (const e of [...carriedOver, ...origins]) {
+    await api.deleteSprintEntry(e.id);
   }
 }
 

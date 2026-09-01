@@ -164,3 +164,93 @@ func TestDashboardRepository_DeveloperBreakdown_GroupsByAssignee(t *testing.T) {
 		t.Errorf("Bob = %+v, want workload=3 done=0", got)
 	}
 }
+
+func TestDashboardRepository_TicketEntries_NamesCarriedFromSprintForCarriedOverEntriesOnly(t *testing.T) {
+	tx := withTx(t)
+	ctx := context.Background()
+
+	project := mustCreateProject(t, tx, "Website Redesign")
+	freshTicket := mustCreateTicket(t, tx, project.ID)
+	carriedTicket := mustCreateTicket(t, tx, project.ID)
+
+	sprintRepo := repository.NewSprintRepository(tx)
+	sprint1 := &model.Sprint{Name: "Sprint 1", StartDate: fixedDate(2026, 8, 1), EndDate: fixedDate(2026, 8, 14), Status: model.SprintClosed}
+	if err := sprintRepo.Create(ctx, sprint1); err != nil {
+		t.Fatalf("create sprint1: %v", err)
+	}
+	sprint2 := &model.Sprint{Name: "Sprint 2", StartDate: fixedDate(2026, 8, 15), EndDate: fixedDate(2026, 8, 28), Status: model.SprintOpen}
+	if err := sprintRepo.Create(ctx, sprint2); err != nil {
+		t.Fatalf("create sprint2: %v", err)
+	}
+
+	entryRepo := repository.NewSprintEntryRepository(tx)
+	originEntry := &model.SprintEntry{TicketID: carriedTicket.ID, SprintID: sprint1.ID, Status: model.EntryNotDone, PointsAtEntry: 3}
+	if err := entryRepo.Create(ctx, originEntry); err != nil {
+		t.Fatalf("create origin entry: %v", err)
+	}
+
+	freshEntry := &model.SprintEntry{TicketID: freshTicket.ID, SprintID: sprint2.ID, Status: model.EntryNotDone, PointsAtEntry: 5}
+	if err := entryRepo.Create(ctx, freshEntry); err != nil {
+		t.Fatalf("create fresh entry: %v", err)
+	}
+	carriedEntry := &model.SprintEntry{TicketID: carriedTicket.ID, SprintID: sprint2.ID, Status: model.EntryNotDone, CarriedFrom: &originEntry.ID, PointsAtEntry: 3}
+	if err := entryRepo.Create(ctx, carriedEntry); err != nil {
+		t.Fatalf("create carried entry: %v", err)
+	}
+
+	entries, err := repository.NewDashboardRepository(tx).TicketEntries(ctx, sprint2.ID)
+	if err != nil {
+		t.Fatalf("TicketEntries() unexpected error: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("TicketEntries() = %d rows, want 2", len(entries))
+	}
+
+	byTicketID := map[int64]model.SprintEntryDetail{}
+	for _, e := range entries {
+		byTicketID[e.TicketID] = e
+	}
+
+	fresh := byTicketID[freshTicket.ID]
+	if fresh.CarriedFromSprintName != nil {
+		t.Errorf("fresh entry CarriedFromSprintName = %v, want nil", *fresh.CarriedFromSprintName)
+	}
+	if fresh.ProjectName != "Website Redesign" {
+		t.Errorf("fresh entry ProjectName = %q, want %q", fresh.ProjectName, "Website Redesign")
+	}
+	if fresh.AssigneeName != "Unassigned" {
+		t.Errorf("fresh entry AssigneeName = %q, want %q", fresh.AssigneeName, "Unassigned")
+	}
+
+	carried := byTicketID[carriedTicket.ID]
+	if carried.CarriedFromSprintName == nil || *carried.CarriedFromSprintName != "Sprint 1" {
+		t.Errorf("carried entry CarriedFromSprintName = %v, want %q", carried.CarriedFromSprintName, "Sprint 1")
+	}
+}
+
+func TestDashboardRepository_TicketEntries_IncludesCancelledEntries(t *testing.T) {
+	tx := withTx(t)
+	ctx := context.Background()
+
+	project := mustCreateProject(t, tx, "Website Redesign")
+	ticket := mustCreateTicket(t, tx, project.ID)
+
+	sprintRepo := repository.NewSprintRepository(tx)
+	sprint := &model.Sprint{Name: "Sprint 1", StartDate: fixedDate(2026, 8, 1), EndDate: fixedDate(2026, 8, 14), Status: model.SprintOpen}
+	if err := sprintRepo.Create(ctx, sprint); err != nil {
+		t.Fatalf("create sprint: %v", err)
+	}
+
+	entryRepo := repository.NewSprintEntryRepository(tx)
+	if err := entryRepo.Create(ctx, &model.SprintEntry{TicketID: ticket.ID, SprintID: sprint.ID, Status: model.EntryCancelled, PointsAtEntry: 8}); err != nil {
+		t.Fatalf("create cancelled entry: %v", err)
+	}
+
+	entries, err := repository.NewDashboardRepository(tx).TicketEntries(ctx, sprint.ID)
+	if err != nil {
+		t.Fatalf("TicketEntries() unexpected error: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Status != model.EntryCancelled {
+		t.Fatalf("TicketEntries() = %+v, want 1 Cancelled entry", entries)
+	}
+}

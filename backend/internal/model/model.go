@@ -101,3 +101,29 @@ type SprintEntry struct {
 	PointsAtEntry         int         `json:"pointsAtEntry"`
 	CreatedAt             time.Time   `json:"createdAt"`
 }
+
+// SprintEntryDetail is one ticket's SprintEntry within a single sprint,
+// joined with the ticket/project/assignee names the sprint detail page's
+// ticket tables need. CarriedFromSprintName is set only when the entry
+// continues from a prior sprint's unfinished entry (CarriedFrom is not nil
+// on the underlying SprintEntry), naming that one prior sprint rather than
+// walking the full carry-over chain back to the ticket's original sprint.
+type SprintEntryDetail struct {
+	EntryID               int64       `json:"entryId"`
+	TicketID              int64       `json:"ticketId"`
+	TicketTitle           string      `json:"ticketTitle"`
+	ProjectName           string      `json:"projectName"`
+	AssigneeName          string      `json:"assigneeName"`
+	Status                EntryStatus `json:"status"`
+	AddedAfterSprintStart bool        `json:"addedAfterSprintStart"`
+	PointsAtEntry         int         `json:"pointsAtEntry"`
+	CarriedFromSprintName *string     `json:"carriedFromSprintName"`
+}
+
+// SprintTicketBreakdown splits a sprint's entries into freshly-planned
+// "current" tickets and tickets continued from a prior sprint's unfinished
+// entry ("carriedOver"), for the sprint detail page's two ticket tables.
+type SprintTicketBreakdown struct {
+	Current     []SprintEntryDetail `json:"current"`
+	CarriedOver []SprintEntryDetail `json:"carriedOver"`
+}

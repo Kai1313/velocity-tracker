@@ -62,6 +62,23 @@ export type SprintEntry = {
   createdAt: string;
 };
 
+export type SprintEntryDetail = {
+  entryId: number;
+  ticketId: number;
+  ticketTitle: string;
+  projectName: string;
+  assigneeName: string;
+  status: EntryStatus;
+  addedAfterSprintStart: boolean;
+  pointsAtEntry: number;
+  carriedFromSprintName: string | null;
+};
+
+export type SprintTicketBreakdown = {
+  current: SprintEntryDetail[];
+  carriedOver: SprintEntryDetail[];
+};
+
 function backendUrl() {
   return process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:8080';
 }
@@ -109,6 +126,10 @@ export function getSprintSummaries() {
 
 export function getSprintDeveloperBreakdown(sprintId: number) {
   return getJSON<DeveloperSummary[]>(`/dashboard/sprints/${sprintId}`);
+}
+
+export function getSprintTicketBreakdown(sprintId: number) {
+  return getJSON<SprintTicketBreakdown>(`/dashboard/sprints/${sprintId}/entries`);
 }
 
 export function getSprint(sprintId: number) {

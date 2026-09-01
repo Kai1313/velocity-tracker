@@ -81,3 +81,45 @@ func (r *DashboardRepository) DeveloperBreakdown(ctx context.Context, sprintID i
 	}
 	return breakdown, wrapReadErr(rows.Err())
 }
+
+// TicketEntries returns every SprintEntry in a single sprint, joined with
+// the ticket/project/assignee names and (when the entry was carried over)
+// the name of the one prior sprint it was carried from. Cancelled entries
+// are included — unlike the aggregate summaries above, this is a plain
+// listing of what's in the sprint, not a metrics computation.
+func (r *DashboardRepository) TicketEntries(ctx context.Context, sprintID int64) ([]model.SprintEntryDetail, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			se.id,
+			se.ticket_id,
+			t.title,
+			p.name,
+			COALESCE(u.name, 'Unassigned') AS assignee_name,
+			se.status,
+			se.added_after_sprint_start,
+			se.points_at_entry,
+			origin_sprint.name AS carried_from_sprint_name
+		FROM sprint_entry se
+		JOIN ticket t ON t.id = se.ticket_id
+		JOIN project p ON p.id = t.project_id
+		LEFT JOIN users u ON u.id = t.assignee_id
+		LEFT JOIN sprint_entry origin_se ON origin_se.id = se.carried_from
+		LEFT JOIN sprint origin_sprint ON origin_sprint.id = origin_se.sprint_id
+		WHERE se.sprint_id = $1
+		ORDER BY LOWER(t.title)
+	`, sprintID)
+	if err != nil {
+		return nil, wrapReadErr(err)
+	}
+	defer rows.Close()
+
+	entries := []model.SprintEntryDetail{}
+	for rows.Next() {
+		var e model.SprintEntryDetail
+		if err := rows.Scan(&e.EntryID, &e.TicketID, &e.TicketTitle, &e.ProjectName, &e.AssigneeName, &e.Status, &e.AddedAfterSprintStart, &e.PointsAtEntry, &e.CarriedFromSprintName); err != nil {
+			return nil, wrapReadErr(err)
+		}
+		entries = append(entries, e)
+	}
+	return entries, wrapReadErr(rows.Err())
+}
