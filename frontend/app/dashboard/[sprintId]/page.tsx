@@ -1,81 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
-import { getSprint, getSprintDeveloperBreakdown, getSprintTicketBreakdown, type EntryStatus, type SprintEntryDetail } from '@/lib/api';
-
-const statusVariant: Record<EntryStatus, 'success' | 'warning' | 'secondary'> = {
-  Done: 'success',
-  NotDone: 'warning',
-  Cancelled: 'secondary',
-};
-
-function TicketTable({
-  title,
-  entries,
-  showCarriedFrom,
-  emptyMessage,
-}: {
-  title: string;
-  entries: SprintEntryDetail[];
-  showCarriedFrom: boolean;
-  emptyMessage: string;
-}) {
-  const totalPoints = entries.reduce((sum, e) => sum + e.pointsAtEntry, 0);
-  const columnCount = showCarriedFrom ? 5 : 4;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {entries.length} ticket{entries.length === 1 ? '' : 's'} &middot; {totalPoints} pts
-        </p>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Ticket</TableHead>
-              <TableHead>Assignee</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Points</TableHead>
-              {showCarriedFrom && <TableHead>Carried from</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-muted-foreground">
-                  {emptyMessage}
-                </TableCell>
-              </TableRow>
-            )}
-            {entries.map((e) => (
-              <TableRow key={e.entryId}>
-                <TableCell className="font-medium">
-                  {e.projectName} - {e.ticketTitle}
-                </TableCell>
-                <TableCell>{e.assigneeName}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    <Badge variant={statusVariant[e.status]}>{e.status}</Badge>
-                    {e.addedAfterSprintStart && <Badge variant="secondary">Late add</Badge>}
-                  </div>
-                </TableCell>
-                <TableCell>{e.pointsAtEntry}</TableCell>
-                {showCarriedFrom && <TableCell className="text-muted-foreground">{e.carriedFromSprintName}</TableCell>}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  );
-}
+import { getSprint, getSprintDeveloperBreakdown } from '@/lib/api';
 
 export default async function SprintDashboardPage({
   params,
@@ -90,13 +19,8 @@ export default async function SprintDashboardPage({
 
   let sprint;
   let breakdown;
-  let ticketBreakdown;
   try {
-    [sprint, breakdown, ticketBreakdown] = await Promise.all([
-      getSprint(id),
-      getSprintDeveloperBreakdown(id),
-      getSprintTicketBreakdown(id),
-    ]);
+    [sprint, breakdown] = await Promise.all([getSprint(id), getSprintDeveloperBreakdown(id)]);
   } catch {
     notFound();
   }
@@ -118,12 +42,14 @@ export default async function SprintDashboardPage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sprint workload (pts)</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-bold">{totalWorkload}</CardContent>
-        </Card>
+        <Link href={`/dashboard/${id}/entries`} className="block">
+          <Card className="transition-colors hover:bg-accent/50">
+            <CardHeader>
+              <CardTitle>Sprint workload (pts)</CardTitle>
+            </CardHeader>
+            <CardContent className="text-3xl font-bold">{totalWorkload}</CardContent>
+          </Card>
+        </Link>
         <Card>
           <CardHeader>
             <CardTitle>Sprint done (pts)</CardTitle>
@@ -186,20 +112,6 @@ export default async function SprintDashboardPage({
           </Table>
         </CardContent>
       </Card>
-
-      <TicketTable
-        title="Current sprint tickets"
-        entries={ticketBreakdown.current}
-        showCarriedFrom={false}
-        emptyMessage="No tickets currently planned for this sprint."
-      />
-
-      <TicketTable
-        title="Carried over tickets"
-        entries={ticketBreakdown.carriedOver}
-        showCarriedFrom
-        emptyMessage="No carried-over tickets in this sprint."
-      />
     </main>
   );
 }

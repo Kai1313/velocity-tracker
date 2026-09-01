@@ -42,20 +42,21 @@ test.describe('Dashboard / Sprint detail', () => {
     await api.deleteProject(project.id);
   });
 
-  test('splits current-sprint tickets from carried-over tickets, naming the origin sprint', async ({ page }) => {
+  test('clicking sprint workload navigates to the current-vs-carried-over breakdown', async ({ page }) => {
     await page.goto(`/dashboard/${currentSprint.id}`);
     await expect(page.getByRole('heading', { name: currentSprint.name })).toBeVisible();
 
-    const currentSection = page.locator('div', { has: page.getByRole('heading', { name: 'Current sprint tickets' }) }).first();
-    const currentRow = currentSection.locator('tr', { hasText: freshTicket.title });
-    await expect(currentRow).toBeVisible();
-    await expect(currentRow.getByText('NotDone')).toBeVisible();
-    await expect(currentSection.locator('tr', { hasText: carriedTicket.title })).toHaveCount(0);
+    await page.getByText('Sprint workload (pts)').click();
+    await expect(page).toHaveURL(`/dashboard/${currentSprint.id}/entries`);
 
-    const carriedSection = page.locator('div', { has: page.getByRole('heading', { name: 'Carried over tickets' }) }).first();
-    const carriedRow = carriedSection.locator('tr', { hasText: carriedTicket.title });
-    await expect(carriedRow).toBeVisible();
-    await expect(carriedRow.getByText(priorSprint.name)).toBeVisible();
-    await expect(carriedSection.locator('tr', { hasText: freshTicket.title })).toHaveCount(0);
+    const currentCard = page.locator('div', { has: page.getByRole('heading', { name: 'Current sprint workload' }) }).first();
+    await expect(currentCard.getByText('5', { exact: true })).toBeVisible();
+    await expect(currentCard.getByText('1 ticket', { exact: true })).toBeVisible();
+
+    const carriedCard = page
+      .locator('div', { has: page.getByRole('heading', { name: 'Carry-over sprint workload' }) })
+      .first();
+    await expect(carriedCard.getByText('3', { exact: true })).toBeVisible();
+    await expect(carriedCard.getByText('1 ticket', { exact: true })).toBeVisible();
   });
 });
