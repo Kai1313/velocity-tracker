@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { WorkloadDoneChart, type WorkloadDoneDatum } from '@/components/dashboard/workload-done-chart';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
 import { getSprint, getSprintTicketBreakdown, type SprintEntryDetail } from '@/lib/api';
 
 function workload(entries: SprintEntryDetail[]) {
@@ -13,21 +14,75 @@ function workload(entries: SprintEntryDetail[]) {
   };
 }
 
-// Per-developer Workload/Done pair within one subset (current or carried-over),
-// matching the aggregation the developer breakdown chart on /dashboard/{sprintId}
-// uses for the whole sprint. Cancelled entries are excluded, consistent with
-// "workload" everywhere else in this app.
-function developerBreakdown(entries: SprintEntryDetail[]): WorkloadDoneDatum[] {
-  const byDeveloper = new Map<string, { workload: number; done: number }>();
+type DeveloperStats = {
+  category: string;
+  workloadPoints: number;
+  donePoints: number;
+  workloadTickets: number;
+  doneTickets: number;
+};
+
+// Per-developer workload/done stats within one subset (current or carried-over),
+// matching the aggregation the "By developer" chart and table on
+// /dashboard/{sprintId} use for the whole sprint. Cancelled entries are
+// excluded, consistent with "workload" everywhere else in this app.
+function developerStats(entries: SprintEntryDetail[]): DeveloperStats[] {
+  const byDeveloper = new Map<string, DeveloperStats>();
   for (const e of entries) {
     if (e.status === 'Cancelled') continue;
-    const bucket = byDeveloper.get(e.assigneeName) ?? { workload: 0, done: 0 };
-    bucket.workload += e.pointsAtEntry;
-    if (e.status === 'Done') bucket.done += e.pointsAtEntry;
+    const bucket = byDeveloper.get(e.assigneeName) ?? {
+      category: e.assigneeName,
+      workloadPoints: 0,
+      donePoints: 0,
+      workloadTickets: 0,
+      doneTickets: 0,
+    };
+    bucket.workloadPoints += e.pointsAtEntry;
+    bucket.workloadTickets += 1;
+    if (e.status === 'Done') {
+      bucket.donePoints += e.pointsAtEntry;
+      bucket.doneTickets += 1;
+    }
     byDeveloper.set(e.assigneeName, bucket);
   }
-  return Array.from(byDeveloper, ([category, points]) => ({ category, ...points })).sort((a, b) =>
+  return Array.from(byDeveloper.values()).sort((a, b) =>
     a.category.localeCompare(b.category, undefined, { sensitivity: 'base' }),
+  );
+}
+
+function DeveloperTable({ title, stats }: { title: string; stats: DeveloperStats[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Developer</TableHead>
+              <TableHead>Workload (pts)</TableHead>
+              <TableHead>Done (pts)</TableHead>
+              <TableHead>Tickets</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {stats.map((s) => (
+              <TableRow key={s.category}>
+                <TableCell className="font-medium">{s.category}</TableCell>
+                <TableCell>{s.workloadPoints}</TableCell>
+                <TableCell>
+                  {s.donePoints}/{s.workloadPoints}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {s.doneTickets}/{s.workloadTickets} tickets
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -52,8 +107,8 @@ export default async function SprintEntriesPage({
 
   const current = workload(ticketBreakdown.current);
   const carriedOver = workload(ticketBreakdown.carriedOver);
-  const currentBreakdown = developerBreakdown(ticketBreakdown.current);
-  const carriedOverBreakdown = developerBreakdown(ticketBreakdown.carriedOver);
+  const currentStats = developerStats(ticketBreakdown.current);
+  const carriedOverStats = developerStats(ticketBreakdown.carriedOver);
 
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-8">
@@ -90,26 +145,35 @@ export default async function SprintEntriesPage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {currentBreakdown.length > 0 && (
+        {currentStats.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Current workload vs. done, per developer</CardTitle>
             </CardHeader>
             <CardContent>
-              <WorkloadDoneChart data={currentBreakdown} />
+              <WorkloadDoneChart
+                data={currentStats.map((s) => ({ category: s.category, workload: s.workloadPoints, done: s.donePoints }))}
+              />
             </CardContent>
           </Card>
         )}
-        {carriedOverBreakdown.length > 0 && (
+        {carriedOverStats.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Carry-over workload vs. done, per developer</CardTitle>
             </CardHeader>
             <CardContent>
-              <WorkloadDoneChart data={carriedOverBreakdown} />
+              <WorkloadDoneChart
+                data={carriedOverStats.map((s) => ({ category: s.category, workload: s.workloadPoints, done: s.donePoints }))}
+              />
             </CardContent>
           </Card>
         )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {currentStats.length > 0 && <DeveloperTable title="Current — by developer" stats={currentStats} />}
+        {carriedOverStats.length > 0 && <DeveloperTable title="Carry-over — by developer" stats={carriedOverStats} />}
       </div>
     </main>
   );
