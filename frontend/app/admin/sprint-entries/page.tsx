@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -66,13 +67,13 @@ function EntryFormDialog({
 }) {
   const isEdit = entry !== undefined;
   const [open, setOpen] = useState(false);
-  const [ticketId, setTicketId] = useState(entry?.ticketId ?? tickets[0]?.id ?? 0);
+  const [ticketId, setTicketId] = useState<number | null>(entry?.ticketId ?? null);
   const [sprintId, setSprintId] = useState(entry?.sprintId ?? sprints[0]?.id ?? 0);
   const [status, setStatus] = useState<EntryStatus>(entry?.status ?? 'NotDone');
   const [addedAfterStart, setAddedAfterStart] = useState(entry?.addedAfterSprintStart ?? false);
   const [carriedFrom, setCarriedFrom] = useState<string>(entry?.carriedFrom != null ? String(entry.carriedFrom) : NONE);
   const [carriedFromTouched, setCarriedFromTouched] = useState(false);
-  const [points, setPoints] = useState(entry?.pointsAtEntry ?? tickets[0]?.storyPoints ?? 1);
+  const [points, setPoints] = useState(entry?.pointsAtEntry ?? 1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,13 +82,13 @@ function EntryFormDialog({
 
   useEffect(() => {
     if (open) {
-      setTicketId(entry?.ticketId ?? tickets[0]?.id ?? 0);
+      setTicketId(entry?.ticketId ?? null);
       setSprintId(entry?.sprintId ?? sprints[0]?.id ?? 0);
       setStatus(entry?.status ?? 'NotDone');
       setAddedAfterStart(entry?.addedAfterSprintStart ?? false);
       setCarriedFrom(entry?.carriedFrom != null ? String(entry.carriedFrom) : NONE);
       setCarriedFromTouched(false);
-      setPoints(entry?.pointsAtEntry ?? tickets[0]?.storyPoints ?? 1);
+      setPoints(entry?.pointsAtEntry ?? 1);
       setError(null);
     }
   }, [open, entry, tickets, sprints]);
@@ -127,6 +128,7 @@ function EntryFormDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!isEdit && ticketId === null) return;
     setPending(true);
     setError(null);
     const carriedFromValue = carriedFrom === NONE ? null : Number(carriedFrom);
@@ -140,7 +142,7 @@ function EntryFormDialog({
               pointsAtEntry: points,
             })
           : await createSprintEntry({
-              ticketId,
+              ticketId: ticketId as number,
               sprintId,
               status,
               addedAfterSprintStart: addedAfterStart,
@@ -182,22 +184,19 @@ function EntryFormDialog({
             <>
               <div className="space-y-1.5">
                 <Label htmlFor="entry-ticket">Ticket</Label>
-                <Select
+                <Combobox
                   id="entry-ticket"
-                  value={ticketId}
-                  onChange={(e) => {
-                    const id = Number(e.target.value);
+                  value={ticketId != null ? String(ticketId) : null}
+                  onChange={(v) => {
+                    const id = Number(v);
                     setTicketId(id);
                     setPoints(tickets.find((t) => t.id === id)?.storyPoints ?? points);
                   }}
-                  required
-                >
-                  {tickets.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {ticketLabel(t.id, tickets, projects)}
-                    </option>
-                  ))}
-                </Select>
+                  options={tickets.map((t) => ({ value: String(t.id), label: ticketLabel(t.id, tickets, projects) }))}
+                  placeholder="Select a ticket"
+                  searchPlaceholder="Search tickets…"
+                  emptyMessage="No tickets found."
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="entry-sprint">Sprint</Label>
@@ -267,7 +266,7 @@ function EntryFormDialog({
           )}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <DialogFooter>
-            <Button type="submit" disabled={pending || locked}>
+            <Button type="submit" disabled={pending || locked || (!isEdit && ticketId === null)}>
               {pending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>

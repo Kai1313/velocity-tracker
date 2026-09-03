@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogTrigger,
@@ -27,9 +28,23 @@ import {
   type TicketDetail,
   type Project,
   type User,
+  type EntryStatus,
 } from '@/lib/api';
 
 const UNASSIGNED = 'unassigned';
+const ALL = 'all';
+const NO_STATUS = 'none';
+
+const statusVariant: Record<EntryStatus, 'success' | 'warning' | 'secondary'> = {
+  Done: 'success',
+  NotDone: 'warning',
+  Cancelled: 'secondary',
+};
+
+function StatusBadge({ status }: { status: EntryStatus | null }) {
+  if (status === null) return <Badge variant="outline">No status</Badge>;
+  return <Badge variant={statusVariant[status]}>{status}</Badge>;
+}
 
 function TicketFormDialog({
   ticket,
@@ -159,6 +174,11 @@ export default function TicketsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const [projectFilter, setProjectFilter] = useState(ALL);
+  const [assigneeFilter, setAssigneeFilter] = useState(ALL);
+  const [statusFilter, setStatusFilter] = useState(ALL);
+  const [search, setSearch] = useState('');
+
   useEffect(() => {
     Promise.all([listTickets(), listProjects(), listUsers()])
       .then(([t, p, u]) => {
@@ -191,6 +211,34 @@ export default function TicketsPage() {
     return users.find((u) => u.id === id)?.name ?? `#${id}`;
   }
 
+  const hasActiveFilters = Boolean(
+    projectFilter !== ALL || assigneeFilter !== ALL || statusFilter !== ALL || search,
+  );
+
+  const filteredTickets =
+    tickets === null
+      ? null
+      : tickets.filter((t) => {
+          if (projectFilter !== ALL && String(t.projectId) !== projectFilter) return false;
+          if (assigneeFilter !== ALL) {
+            const matches = assigneeFilter === UNASSIGNED ? t.assigneeId === null : String(t.assigneeId) === assigneeFilter;
+            if (!matches) return false;
+          }
+          if (statusFilter !== ALL) {
+            const matches = statusFilter === NO_STATUS ? t.currentStatus === null : t.currentStatus === statusFilter;
+            if (!matches) return false;
+          }
+          if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
+          return true;
+        });
+
+  function clearFilters() {
+    setProjectFilter(ALL);
+    setAssigneeFilter(ALL);
+    setStatusFilter(ALL);
+    setSearch('');
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
@@ -208,29 +256,84 @@ export default function TicketsPage() {
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 p-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-project">Project</Label>
+            <Select id="filter-project" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
+              <option value={ALL}>All projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-assignee">Assignee</Label>
+            <Select id="filter-assignee" value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}>
+              <option value={ALL}>All assignees</option>
+              <option value={UNASSIGNED}>Unassigned</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-status">Status</Label>
+            <Select id="filter-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value={ALL}>All statuses</option>
+              <option value="Done">Done</option>
+              <option value="NotDone">NotDone</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value={NO_STATUS}>No status</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-search">Search title</Label>
+            <Input
+              id="filter-search"
+              placeholder="Ticket title…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-48"
+            />
+          </div>
+          <Button type="button" variant="ghost" size="sm" disabled={!hasActiveFilters} onClick={clearFilters}>
+            Clear filters
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Project</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Points</TableHead>
                 <TableHead>Assignee</TableHead>
                 <TableHead className="w-1" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tickets?.length === 0 && (
+              {filteredTickets?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No tickets yet.
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    {hasActiveFilters ? 'No tickets match these filters.' : 'No tickets yet.'}
                   </TableCell>
                 </TableRow>
               )}
-              {tickets?.map((t) => (
+              {filteredTickets?.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-medium">{t.title}</TableCell>
                   <TableCell className="text-muted-foreground">{projectName(t.projectId)}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={t.currentStatus} />
+                  </TableCell>
                   <TableCell>{t.storyPoints}</TableCell>
                   <TableCell className="text-muted-foreground">{assigneeName(t.assigneeId)}</TableCell>
                   <TableCell className="flex justify-end gap-1">
