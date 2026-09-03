@@ -2,7 +2,7 @@
 
 We added a `Project` entity so tickets can be organized by what they belong to. The question was where it attaches: to `Ticket`, to `Sprint`, or both.
 
-We chose `Ticket.project_id` (mandatory, `NOT NULL`) and left `Sprint` project-agnostic. This is one team running one continuous set of sprints — see [ADR-0002](0002-go-backend.md) and [README](../../README_velocity_tracker.md) for the single-team framing — and that team's sprints routinely mix work from more than one project. Forcing a `Sprint` to belong to a single `Project` would either fragment sprints per project (contradicting "one team, one sprint cadence") or leave the field meaningless for mixed sprints.
+We chose `Ticket.project_id` (mandatory, `NOT NULL`) and left `Sprint` project-agnostic. This is one team running one continuous set of sprints — see [ADR-0002](0002-go-backend.md) and [CONTEXT.md](../../CONTEXT.md) for the single-team framing — and that team's sprints routinely mix work from more than one project. Forcing a `Sprint` to belong to a single `Project` would either fragment sprints per project (contradicting "one team, one sprint cadence") or leave the field meaningless for mixed sprints.
 
 `Project` also carries a `status` (`Active` / `Archived`) rather than being deletable outright once referenced. This follows the same history-preservation stance as [ADR-0001](0001-ticket-sprintentry-split.md): a `Ticket` row must always be able to resolve its `project_id`, so a `Project` with existing tickets is archived, never deleted.
 

@@ -1,10 +1,10 @@
 # Velocity Tracker
 
-A real app for tracking sprint velocity, planning accuracy, and late-add rate for a single software team. See [CONTEXT.md](CONTEXT.md) for the domain glossary (Ticket, SprintEntry, Project, Close Sprint, etc.) and [docs/adr/](docs/adr/) for the architectural decisions behind it. `README_velocity_tracker.md` is the original product sketch this app is built from.
+A real app for tracking sprint velocity, planning accuracy, and late-add rate for a single software team. See [CONTEXT.md](CONTEXT.md) for the domain glossary (Ticket, SprintEntry, Project, Close Sprint, etc.) and [docs/adr/](docs/adr/) for the architectural decisions behind it.
 
 ## Stack
 
-- **Frontend**: Next.js 15 / TypeScript, Tailwind CSS, [shadcn/ui](https://ui.shadcn.com) components, [next-themes](https://github.com/pacocoursey/next-themes) for dark mode, `@radix-ui/react-dialog` + `@radix-ui/react-alert-dialog` for the Admin UI's forms (`frontend/`) — requires **Node 18.18+** (Next.js 15 will not run on Node 16)
+- **Frontend**: Next.js 15 / TypeScript, Tailwind CSS, [shadcn/ui](https://ui.shadcn.com) components, [next-themes](https://github.com/pacocoursey/next-themes) for dark mode, `@radix-ui/react-dialog` + `@radix-ui/react-alert-dialog` for the Admin UI's forms, `@radix-ui/react-popover` + `cmdk` for the searchable ticket-picker Combobox (`frontend/`) — requires **Node 18.18+** (Next.js 15 will not run on Node 16)
 - **Backend**: Go, stdlib `net/http` (Go 1.22+ routing patterns), raw `pgx` for Postgres access — no ORM, no router framework (`backend/`)
 - **Database**: PostgreSQL, migrated via `golang-migrate` (embedded, runs automatically on backend startup)
 
@@ -87,6 +87,8 @@ Not yet implemented: the Close Sprint auto-carry-over action (see [CONTEXT.md](C
 
 Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a theme toggle in the top-right corner. It cycles Light → Dark → System; System follows the OS preference and is the default on first visit, with the chosen theme persisted across visits. The header also links to `/admin/users` for data entry.
 
+`/dashboard/{sprintId}/entries` also breaks the current/carry-over workload down per developer, as a `DeveloperTable` (Developer / Workload / Done / Tickets) next to each subset's chart — one table per subset, omitted when that subset is empty, same as the chart it sits beside.
+
 `/dashboard`, `/dashboard/{sprintId}`, and `/dashboard/{sprintId}/entries` each also show a Workload-vs-Done grouped bar chart — per sprint, per developer within the sprint, and per developer within the current/carry-over subset (one chart per subset, omitted when that subset is empty) respectively — built on [Recharts](https://recharts.org) via the shared `WorkloadDoneChart` component (`frontend/components/dashboard/workload-done-chart.tsx`). The two series colors are defined as `--chart-workload`/`--chart-done` CSS custom properties in `globals.css` (separate light/dark values) rather than hardcoded in the component, and were validated colorblind-safe against this app's actual card surfaces before being chosen — see the `dataviz` skill if you add another chart here. Charts are additive: the totals and tables alongside them still carry the exact numbers and are what a table-view/accessibility fallback reads.
 
 ## Admin UI
@@ -94,6 +96,8 @@ Both dashboard pages share a header (`frontend/app/dashboard/layout.tsx`) with a
 `/admin` is where `User`, `Project`, `Ticket`, `Sprint`, and `SprintEntry` records actually get created — there's no other way to populate the app's data short of calling the API directly. All five entities are implemented (`/admin/users`, `/admin/projects`, `/admin/tickets`, `/admin/sprints`, `/admin/sprint-entries`).
 
 The Ticket form's Project/Assignee fields and the Sprint form's dates work as you'd expect from the API shapes: Assignee is nullable (an "Unassigned" option, not a required field), and dates round-trip between the `<input type="date">` UI (`YYYY-MM-DD`) and the backend's RFC3339 `time.Time` JSON via small converters in `app/admin/sprints/page.tsx`.
+
+`/admin/tickets` has a filter bar (Project, Assignee, Status, and a title search box, all combinable) plus a Status column showing each ticket's current status — filtering here is client-side over the already-fetched ticket list, unlike `/admin/sprint-entries`'s server-side, query-param-driven filtering below.
 
 `GET /projects`, `GET /users`, and the dashboard's per-developer breakdown all sort case-insensitively by name (`ORDER BY LOWER(name)` in the repository, not a frontend sort) rather than creation order — so `/admin/projects`, `/admin/users`, the Ticket form's Project/Assignee dropdowns, and the dashboard's developer chart/table all list alphabetically. Plain `ORDER BY name` was tried first and rejected: Postgres's default collation is byte-order, so an all-caps name (e.g. "HHH") sorts ahead of every lowercase-starting name regardless of actual alphabetical position — confirmed against real project data before `LOWER()` was added.
 
@@ -103,7 +107,7 @@ Since carrying a `NotDone` ticket into its next sprint is still a manual step (s
 
 The page also has a filter bar (Sprint, Project, Status, "Carried-over only", and a ticket-title search box, all combinable) that narrows the table via the `GET /sprint-entries` query params above rather than filtering client-side — added once the unfiltered list got hard to scan as ticket/project count grew. The active filters sync to the URL's query string, so a filtered view is bookmarkable and survives a refresh; landing on the page with no filters in the URL defaults to whichever sprint is currently `Open`, since "what's in the current sprint" is the most common lookup. The orphaned-carry-over warning (a `NotDone` entry in a `Closed` sprint with no later entry yet for that ticket) scopes to whichever sprint the table is currently filtered to, rather than always listing every closed sprint's orphans at once — it's still computed from the full unfiltered entry list under the hood, since "does a later entry exist" is inherently a cross-sprint question that a single sprint's filtered rows can't answer on their own.
 
-`Ticket.title` isn't unique across projects (see [CONTEXT.md](CONTEXT.md)) — with two projects reusing the same numbering scheme, a bare title like `2026_07_FEATURE_110` doesn't say which one it belongs to. Every place this page shows a ticket — the Ticket and Carried-from dropdowns, the entries table, the Edit dialog's description, the delete-confirmation label, and the orphaned-carry-over warning — renders `"<Project> - <Title>"` instead, via a shared `ticketLabel` helper in `app/admin/sprint-entries/page.tsx`.
+`Ticket.title` isn't unique across projects (see [CONTEXT.md](CONTEXT.md)) — with two projects reusing the same numbering scheme, a bare title like `2026_07_FEATURE_110` doesn't say which one it belongs to. Every place this page shows a ticket — the Ticket combobox, the Carried-from dropdown, the entries table, the Edit dialog's description, the delete-confirmation label, and the orphaned-carry-over warning — renders `"<Project> - <Title>"` instead, via a shared `ticketLabel` helper in `app/admin/sprint-entries/page.tsx`.
 
 Each entity gets a list page (`Card`/`Table`, matching the dashboard's look) with dialog-based create/edit forms and a confirm step before delete. `frontend/components/admin/delete-confirm-button.tsx` is shared across entities; the create/edit dialogs are not, since their fields differ enough per entity that a shared abstraction isn't worth it yet.
 
