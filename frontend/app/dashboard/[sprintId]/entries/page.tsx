@@ -11,6 +11,7 @@ function workload(entries: SprintEntryDetail[]) {
   return {
     points: counted.reduce((sum, e) => sum + e.pointsAtEntry, 0),
     tickets: counted.length,
+    doneTickets: counted.filter((e) => e.status === 'Done').length,
   };
 }
 
@@ -127,7 +128,7 @@ export default async function SprintEntriesPage({
           <CardContent className="text-3xl font-bold">
             {current.points} <span className="text-base font-normal text-muted-foreground">pts</span>
             <p className="mt-1 text-sm font-normal text-muted-foreground">
-              {current.tickets} ticket{current.tickets === 1 ? '' : 's'}
+              {current.doneTickets}/{current.tickets} tickets
             </p>
           </CardContent>
         </Card>
@@ -138,7 +139,7 @@ export default async function SprintEntriesPage({
           <CardContent className="text-3xl font-bold">
             {carriedOver.points} <span className="text-base font-normal text-muted-foreground">pts</span>
             <p className="mt-1 text-sm font-normal text-muted-foreground">
-              {carriedOver.tickets} ticket{carriedOver.tickets === 1 ? '' : 's'}
+              {carriedOver.doneTickets}/{carriedOver.tickets} tickets
             </p>
           </CardContent>
         </Card>
