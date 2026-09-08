@@ -19,6 +19,7 @@
 # Editor / OS
 .DS_Store
 .claude/
+.codegraph/
 
 # Real spreadsheet data must never be committed — only the template is tracked
 *.xlsx
