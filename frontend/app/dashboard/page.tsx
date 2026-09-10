@@ -41,7 +41,12 @@ export default async function DashboardPage() {
           <CardHeader>
             <CardTitle>Total workload (pts)</CardTitle>
           </CardHeader>
-          <CardContent className="text-3xl font-bold">{totalWorkload}</CardContent>
+          <CardContent className="text-3xl font-bold">
+            {totalWorkload}
+            <p className="mt-1 text-sm font-normal text-muted-foreground">
+              Sum of every sprint&apos;s committed points, including re-planned carry-over
+            </p>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader>
@@ -50,6 +55,9 @@ export default async function DashboardPage() {
           <CardContent className="text-3xl font-bold">
             {totalDone}
             <span className="ml-2 text-base font-normal text-muted-foreground">/ {totalWorkload}</span>
+            <p className="mt-1 text-sm font-normal text-muted-foreground">
+              Points delivered against that cumulative commitment
+            </p>
           </CardContent>
         </Card>
       </div>
