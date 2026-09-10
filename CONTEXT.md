@@ -33,6 +33,10 @@ Total story points across a sprint's **Committed Completed Points** and **Late-A
 _Avoid_: Completed Points (ambiguous — doesn't say whether late-adds are included)
 _Not the same as_: the dashboard's **Workload**/**Done** figures (`GET /dashboard/sprints`). Those are a deliberately simpler v1 metric — total points committed vs. done, with no Committed/Late-Add split yet. See [ADR-0004](docs/adr/0004-dashboard-v1-simplified-metrics.md).
 
+**Sprint Health**:
+A per-`Project`, per-`Sprint` early-warning signal, computed on the fly (not stored) for every `Active` project with entries in a currently `Open` sprint — automates a report the team previously maintained by hand. Compares **Required Velocity** (`(Committed SP − Done SP) ÷ Days Remaining`) against **Achieved Velocity** (`Done SP ÷ Days Elapsed`), both using committed-only points, to produce an `OnTrack`/`AtRisk`/`Critical` status. See [ADR-0010](docs/adr/0010-project-sprint-health.md); the `AtRisk`/`Critical` ratio cutoffs are a placeholder for v1, not a validated threshold.
+_Not the same as_: **Sprint Velocity** below — Sprint Health is a project-level pace comparison for surfacing risk early, not a completed-sprint total.
+
 **Committed Completed Points**:
 Story points completed in a sprint, counted only from tickets that were part of the sprint's original commitment (not added after sprint start).
 
