@@ -68,10 +68,10 @@ export function SprintHealthCard({ rows }: { rows: ProjectSprintHealth[] }) {
         className="flex-row items-center justify-between gap-4 space-y-0 cursor-pointer select-none"
       >
         <div className="space-y-1.5">
-          <CardTitle>Ringkasan Sprint Berjalan per Project</CardTitle>
+          <CardTitle>Sprint Health by Project</CardTitle>
           <p className="text-sm font-normal text-muted-foreground">
-            Membandingkan &quot;Velocity Dibutuhkan&quot; vs &quot;Velocity Sejauh Ini&quot; sebagai sinyal dini risiko
-            sprint. One row per project per open sprint it has work in.
+            Comparing &quot;Required Velocity&quot; vs &quot;Achieved Velocity&quot; as an early warning signal for
+            sprint risk. One row per project per open sprint it has work in.
           </p>
         </div>
         <ChevronIcon open={open} />
