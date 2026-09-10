@@ -79,6 +79,24 @@ export type SprintTicketBreakdown = {
   carriedOver: SprintEntryDetail[];
 };
 
+export type SprintHealthStatus = 'OnTrack' | 'AtRisk' | 'Critical';
+
+export type ProjectSprintHealth = {
+  projectId: number;
+  projectName: string;
+  sprintId: number;
+  sprintName: string;
+  committedPoints: number;
+  donePoints: number;
+  lateAddPoints: number;
+  daysElapsed: number;
+  daysRemaining: number;
+  overdue: boolean;
+  requiredVelocity: number | null;
+  achievedVelocity: number | null;
+  status: SprintHealthStatus;
+};
+
 function backendUrl() {
   return process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:8080';
 }
@@ -130,6 +148,10 @@ export function getSprintDeveloperBreakdown(sprintId: number) {
 
 export function getSprintTicketBreakdown(sprintId: number) {
   return getJSON<SprintTicketBreakdown>(`/dashboard/sprints/${sprintId}/entries`);
+}
+
+export function getProjectSprintHealth() {
+  return getJSON<ProjectSprintHealth[]>('/dashboard/project-sprint-health');
 }
 
 export function getSprint(sprintId: number) {

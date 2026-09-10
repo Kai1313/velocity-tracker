@@ -123,3 +123,49 @@ func (r *DashboardRepository) TicketEntries(ctx context.Context, sprintID int64)
 	}
 	return entries, wrapReadErr(rows.Err())
 }
+
+// ProjectSprintPoints returns committed/done/late-add point totals per
+// (project, sprint) pair, for every Active project's tickets sitting in a
+// currently Open sprint. Cancelled entries are excluded, matching
+// SprintSummaries/DeveloperBreakdown. Using an inner join (not the LEFT JOIN
+// SprintSummaries uses) is deliberate: a pair with no entries has nothing to
+// report and should not appear as a zero row.
+func (r *DashboardRepository) ProjectSprintPoints(ctx context.Context) ([]model.ProjectSprintPoints, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			p.id,
+			p.name,
+			s.id,
+			s.name,
+			s.start_date,
+			s.end_date,
+			COALESCE(SUM(CASE WHEN NOT se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS committed_points,
+			COALESCE(SUM(CASE WHEN NOT se.added_after_sprint_start AND se.status = 'Done' THEN se.points_at_entry ELSE 0 END), 0)::int AS committed_done_points,
+			COALESCE(SUM(CASE WHEN se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS late_add_points
+		FROM sprint_entry se
+		JOIN ticket t ON t.id = se.ticket_id
+		JOIN project p ON p.id = t.project_id
+		JOIN sprint s ON s.id = se.sprint_id
+		WHERE s.status = 'Open' AND p.status = 'Active' AND se.status <> 'Cancelled'
+		GROUP BY p.id, p.name, s.id, s.name, s.start_date, s.end_date
+		ORDER BY LOWER(p.name), s.id
+	`)
+	if err != nil {
+		return nil, wrapReadErr(err)
+	}
+	defer rows.Close()
+
+	points := []model.ProjectSprintPoints{}
+	for rows.Next() {
+		var p model.ProjectSprintPoints
+		if err := rows.Scan(
+			&p.ProjectID, &p.ProjectName,
+			&p.SprintID, &p.SprintName, &p.SprintStartDate, &p.SprintEndDate,
+			&p.CommittedPoints, &p.CommittedDonePoints, &p.LateAddPoints,
+		); err != nil {
+			return nil, wrapReadErr(err)
+		}
+		points = append(points, p)
+	}
+	return points, wrapReadErr(rows.Err())
+}

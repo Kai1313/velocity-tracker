@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
-import { getSprintSummaries, type SprintSummary } from '@/lib/api';
+import { SprintHealthCard } from '@/components/dashboard/sprint-health-card';
+import { getProjectSprintHealth, getSprintSummaries, type SprintSummary } from '@/lib/api';
 
 function completionBadge(summary: SprintSummary) {
   if (summary.workloadPoints === 0) {
@@ -16,7 +17,7 @@ function completionBadge(summary: SprintSummary) {
 }
 
 export default async function DashboardPage() {
-  const summaries = await getSprintSummaries();
+  const [summaries, projectSprintHealth] = await Promise.all([getSprintSummaries(), getProjectSprintHealth()]);
 
   const totalWorkload = summaries.reduce((sum, s) => sum + s.workloadPoints, 0);
   const totalDone = summaries.reduce((sum, s) => sum + s.donePoints, 0);
@@ -61,6 +62,8 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <SprintHealthCard rows={projectSprintHealth} />
 
       {summaries.length > 0 && (
         <Card>

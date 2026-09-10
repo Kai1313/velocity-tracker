@@ -50,3 +50,12 @@ func (h *DashboardHandler) SprintTicketBreakdown(w http.ResponseWriter, r *http.
 	}
 	writeJSON(w, http.StatusOK, breakdown)
 }
+
+func (h *DashboardHandler) ProjectSprintHealth(w http.ResponseWriter, r *http.Request) {
+	health, err := h.svc.ProjectSprintHealth(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, health)
+}
