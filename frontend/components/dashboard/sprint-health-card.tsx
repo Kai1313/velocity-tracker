@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SprintHealthTable } from '@/components/dashboard/sprint-health-table';
-import type { ProjectSprintHealth } from '@/lib/api';
+import type { SprintHealth } from '@/lib/api';
 
 const STORAGE_KEY = 'dashboard.sprintHealthCard.collapsed';
 
@@ -27,7 +27,7 @@ function ChevronIcon({ open }: { open: boolean }) {
 // Defaults to expanded on every render (including the server-rendered first
 // paint) so there's no hydration mismatch; a stored "collapsed" preference is
 // applied right after mount instead.
-export function SprintHealthCard({ rows }: { rows: ProjectSprintHealth[] }) {
+export function SprintHealthCard({ rows }: { rows: SprintHealth[] }) {
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
@@ -68,10 +68,12 @@ export function SprintHealthCard({ rows }: { rows: ProjectSprintHealth[] }) {
         className="flex-row items-center justify-between gap-4 space-y-0 cursor-pointer select-none"
       >
         <div className="space-y-1.5">
-          <CardTitle>Sprint Health by Project</CardTitle>
+          <CardTitle>Sprint Health</CardTitle>
           <p className="text-sm font-normal text-muted-foreground">
             Comparing &quot;Required Velocity&quot; vs &quot;Achieved Velocity&quot; as an early warning signal for
-            sprint risk. One row per project per open sprint it has work in.
+            sprint risk. One row per open sprint, aggregated across every active project&apos;s work in it — the team&apos;s
+            developers share capacity across projects, so splitting this out per project would distort the pace
+            comparison.
           </p>
         </div>
         <ChevronIcon open={open} />

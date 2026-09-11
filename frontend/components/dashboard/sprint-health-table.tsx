@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { ProjectSprintHealth, SprintHealthStatus } from '@/lib/api';
+import type { SprintHealth, SprintHealthStatus } from '@/lib/api';
 
 const statusLabel: Record<SprintHealthStatus, string> = {
   OnTrack: 'On Track',
@@ -19,13 +19,12 @@ function formatVelocity(value: number | null) {
   return `${value.toFixed(1)} SP/day`;
 }
 
-export function SprintHealthTable({ rows }: { rows: ProjectSprintHealth[] }) {
+export function SprintHealthTable({ rows }: { rows: SprintHealth[] }) {
   return (
     <div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Project Name</TableHead>
             <TableHead>Sprint</TableHead>
             <TableHead>Committed SP</TableHead>
             <TableHead>Done SP</TableHead>
@@ -39,15 +38,14 @@ export function SprintHealthTable({ rows }: { rows: ProjectSprintHealth[] }) {
         <TableBody>
           {rows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground">
-                No projects with work in an open sprint.
+              <TableCell colSpan={8} className="text-center text-muted-foreground">
+                No open sprints with work in them.
               </TableCell>
             </TableRow>
           )}
           {rows.map((r) => (
-            <TableRow key={`${r.projectId}-${r.sprintId}`}>
-              <TableCell className="font-medium">{r.projectName}</TableCell>
-              <TableCell className="text-muted-foreground">{r.sprintName}</TableCell>
+            <TableRow key={r.sprintId}>
+              <TableCell className="font-medium">{r.sprintName}</TableCell>
               <TableCell>{r.committedPoints}</TableCell>
               <TableCell>{r.donePoints}</TableCell>
               <TableCell className="text-muted-foreground">

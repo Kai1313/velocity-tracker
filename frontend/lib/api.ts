@@ -81,9 +81,7 @@ export type SprintTicketBreakdown = {
 
 export type SprintHealthStatus = 'OnTrack' | 'AtRisk' | 'Critical';
 
-export type ProjectSprintHealth = {
-  projectId: number;
-  projectName: string;
+export type SprintHealth = {
   sprintId: number;
   sprintName: string;
   committedPoints: number;
@@ -150,8 +148,8 @@ export function getSprintTicketBreakdown(sprintId: number) {
   return getJSON<SprintTicketBreakdown>(`/dashboard/sprints/${sprintId}/entries`);
 }
 
-export function getProjectSprintHealth() {
-  return getJSON<ProjectSprintHealth[]>('/dashboard/project-sprint-health');
+export function getSprintHealth() {
+  return getJSON<SprintHealth[]>('/dashboard/sprint-health');
 }
 
 export function getSprint(sprintId: number) {

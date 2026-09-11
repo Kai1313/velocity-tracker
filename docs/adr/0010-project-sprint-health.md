@@ -1,5 +1,7 @@
 # Sprint Health is a project-level early-warning signal, thresholds are provisional
 
+> **Superseded in part by [ADR-0011](0011-sprint-health-aggregates-across-projects.md):** the per-project grain described below (one row per `(project, sprint)` pair) was replaced with one row per `Open` sprint, aggregated across every `Active` project's work in it. The velocity formulas, status thresholds, and everything else on this page are unchanged — only the grouping key moved.
+
 This automates a report the team already maintained by hand — a running "current sprint health by project" table (referred to in the code as "Chart 42C") comparing how fast a project needs to move against how fast it's actually moving. `GET /dashboard/project-sprint-health` and the `Sprint Health by Project` card on `/dashboard` replace that manual copy with a computed one, sourced from the same data as [ADR-0004](0004-dashboard-v1-simplified-metrics.md)'s workload/done totals.
 
 This is a separate decision from ADR-0004, not a revision of it: ADR-0004 scoped which totals the dashboard ships (workload/done vs. the full Sprint Velocity split); this ADR is about turning those totals into a per-project pace comparison, at a coarser grain (project, not sprint or developer) than anything else on the dashboard.

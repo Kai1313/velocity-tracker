@@ -11,7 +11,7 @@ type DashboardRepository interface {
 	SprintSummaries(ctx context.Context) ([]model.SprintSummary, error)
 	DeveloperBreakdown(ctx context.Context, sprintID int64) ([]model.DeveloperSummary, error)
 	TicketEntries(ctx context.Context, sprintID int64) ([]model.SprintEntryDetail, error)
-	ProjectSprintPoints(ctx context.Context) ([]model.ProjectSprintPoints, error)
+	SprintPoints(ctx context.Context) ([]model.SprintPoints, error)
 }
 
 type DashboardService struct {
@@ -60,25 +60,27 @@ func (s *DashboardService) SprintTicketBreakdown(ctx context.Context, sprintID i
 	return breakdown, nil
 }
 
-// ProjectSprintHealth returns the early-warning velocity comparison
-// ("Chart 42C") for every Active project's Open-sprint work, one row per
-// (project, sprint) pair.
-func (s *DashboardService) ProjectSprintHealth(ctx context.Context) ([]model.ProjectSprintHealth, error) {
-	points, err := s.repo.ProjectSprintPoints(ctx)
+// SprintHealth returns the early-warning velocity comparison ("Chart 42C")
+// for every Open sprint, one row per sprint aggregated across every Active
+// project's committed/done work in it — developer capacity is shared
+// across a team's sub-projects, so this deliberately does not break down
+// per project (see ADR-0011).
+func (s *DashboardService) SprintHealth(ctx context.Context) ([]model.SprintHealth, error) {
+	points, err := s.repo.SprintPoints(ctx)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
-	health := make([]model.ProjectSprintHealth, len(points))
+	health := make([]model.SprintHealth, len(points))
 	for i, p := range points {
-		health[i] = ComputeProjectSprintHealth(p, now)
+		health[i] = ComputeSprintHealth(p, now)
 	}
 	return health, nil
 }
 
-// ComputeProjectSprintHealth is the pure day-count and velocity calculation
-// behind ProjectSprintHealth, exported so it can be unit-tested with a fixed
-// `now` instead of depending on the wall clock.
+// ComputeSprintHealth is the pure day-count and velocity calculation behind
+// SprintHealth, exported so it can be unit-tested with a fixed `now`
+// instead of depending on the wall clock.
 //
 // Both velocity terms use committed-only points (CommittedDonePoints, not
 // CommittedDonePoints+LateAdd): a team finishing late-added tickets while
@@ -86,12 +88,8 @@ func (s *DashboardService) ProjectSprintHealth(ctx context.Context) ([]model.Pro
 // points got marked Done. Late-add work is surfaced separately on the model
 // instead, as a visible signal rather than one baked into the ratio.
 //
-// Days are calendar days, computed from each row's own sprint dates — a
-// project split across multiple concurrently-open sprints (legal, since the
-// one-open-sprint-per-*ticket* trigger in the DB doesn't limit how many
-// sprints a project's tickets collectively touch) gets one independent row
-// per sprint rather than a merged countdown.
-func ComputeProjectSprintHealth(p model.ProjectSprintPoints, now time.Time) model.ProjectSprintHealth {
+// Days are calendar days, computed from the sprint's own start/end dates.
+func ComputeSprintHealth(p model.SprintPoints, now time.Time) model.SprintHealth {
 	today := now.UTC().Truncate(24 * time.Hour)
 	start := p.SprintStartDate.UTC().Truncate(24 * time.Hour)
 	end := p.SprintEndDate.UTC().Truncate(24 * time.Hour)
@@ -103,9 +101,7 @@ func ComputeProjectSprintHealth(p model.ProjectSprintPoints, now time.Time) mode
 	daysRemaining := int(end.Sub(today).Hours() / 24)
 	overdue := daysRemaining <= 0
 
-	h := model.ProjectSprintHealth{
-		ProjectID:       p.ProjectID,
-		ProjectName:     p.ProjectName,
+	h := model.SprintHealth{
 		SprintID:        p.SprintID,
 		SprintName:      p.SprintName,
 		CommittedPoints: p.CommittedPoints,
@@ -128,7 +124,7 @@ func ComputeProjectSprintHealth(p model.ProjectSprintPoints, now time.Time) mode
 	return h
 }
 
-func sprintHealthStatus(h model.ProjectSprintHealth) model.SprintHealthStatus {
+func sprintHealthStatus(h model.SprintHealth) model.SprintHealthStatus {
 	if h.Overdue {
 		return model.HealthCritical
 	}

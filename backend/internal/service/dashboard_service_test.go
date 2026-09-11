@@ -28,7 +28,7 @@ func (f *fakeDashboardRepo) TicketEntries(ctx context.Context, sprintID int64) (
 	return f.entries[sprintID], nil
 }
 
-func (f *fakeDashboardRepo) ProjectSprintPoints(ctx context.Context) ([]model.ProjectSprintPoints, error) {
+func (f *fakeDashboardRepo) SprintPoints(ctx context.Context) ([]model.SprintPoints, error) {
 	return nil, nil
 }
 
@@ -101,9 +101,8 @@ func day(d int) time.Time {
 	return time.Date(2026, 9, d, 0, 0, 0, 0, time.UTC)
 }
 
-func TestComputeProjectSprintHealth(t *testing.T) {
-	base := model.ProjectSprintPoints{
-		ProjectID: 1, ProjectName: "Core Platform",
+func TestComputeSprintHealth(t *testing.T) {
+	base := model.SprintPoints{
 		SprintID: 9, SprintName: "Sprint 9",
 	}
 
@@ -181,7 +180,7 @@ func TestComputeProjectSprintHealth(t *testing.T) {
 			p.SprintStartDate = tt.start
 			p.SprintEndDate = tt.end
 
-			got := service.ComputeProjectSprintHealth(p, tt.now)
+			got := service.ComputeSprintHealth(p, tt.now)
 
 			if got.DaysElapsed != tt.wantElapsed {
 				t.Errorf("DaysElapsed = %d, want %d", got.DaysElapsed, tt.wantElapsed)

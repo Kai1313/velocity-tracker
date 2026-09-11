@@ -255,7 +255,7 @@ func TestDashboardRepository_TicketEntries_IncludesCancelledEntries(t *testing.T
 	}
 }
 
-func TestDashboardRepository_ProjectSprintPoints_SplitsCommittedFromLateAdd(t *testing.T) {
+func TestDashboardRepository_SprintPoints_SplitsCommittedFromLateAdd(t *testing.T) {
 	tx := withTx(t)
 	ctx := context.Background()
 
@@ -282,19 +282,19 @@ func TestDashboardRepository_ProjectSprintPoints_SplitsCommittedFromLateAdd(t *t
 		}
 	}
 
-	points, err := repository.NewDashboardRepository(tx).ProjectSprintPoints(ctx)
+	points, err := repository.NewDashboardRepository(tx).SprintPoints(ctx)
 	if err != nil {
-		t.Fatalf("ProjectSprintPoints() unexpected error: %v", err)
+		t.Fatalf("SprintPoints() unexpected error: %v", err)
 	}
 
-	var got *model.ProjectSprintPoints
+	var got *model.SprintPoints
 	for i := range points {
-		if points[i].ProjectID == project.ID {
+		if points[i].SprintID == sprint.ID {
 			got = &points[i]
 		}
 	}
 	if got == nil {
-		t.Fatalf("ProjectSprintPoints() missing project %d in result", project.ID)
+		t.Fatalf("SprintPoints() missing sprint %d in result", sprint.ID)
 	}
 	if got.CommittedPoints != 5 {
 		t.Errorf("CommittedPoints = %d, want 5 (cancelled and late-add excluded)", got.CommittedPoints)
@@ -307,7 +307,54 @@ func TestDashboardRepository_ProjectSprintPoints_SplitsCommittedFromLateAdd(t *t
 	}
 }
 
-func TestDashboardRepository_ProjectSprintPoints_ExcludesClosedSprintsAndArchivedProjects(t *testing.T) {
+func TestDashboardRepository_SprintPoints_AggregatesAcrossProjectsInSameSprint(t *testing.T) {
+	tx := withTx(t)
+	ctx := context.Background()
+
+	projectA := mustCreateProject(t, tx, "Website Redesign")
+	projectB := mustCreateProject(t, tx, "Internal Tooling")
+	ticketA := mustCreateTicket(t, tx, projectA.ID)
+	ticketB := mustCreateTicket(t, tx, projectB.ID)
+
+	sprintRepo := repository.NewSprintRepository(tx)
+	sprint := &model.Sprint{Name: "Sprint 9", StartDate: fixedDate(2026, 9, 1), EndDate: fixedDate(2026, 9, 14), Status: model.SprintOpen}
+	if err := sprintRepo.Create(ctx, sprint); err != nil {
+		t.Fatalf("create sprint: %v", err)
+	}
+
+	entryRepo := repository.NewSprintEntryRepository(tx)
+	if err := entryRepo.Create(ctx, &model.SprintEntry{TicketID: ticketA.ID, SprintID: sprint.ID, Status: model.EntryDone, PointsAtEntry: 5}); err != nil {
+		t.Fatalf("create project A entry: %v", err)
+	}
+	if err := entryRepo.Create(ctx, &model.SprintEntry{TicketID: ticketB.ID, SprintID: sprint.ID, Status: model.EntryNotDone, PointsAtEntry: 3}); err != nil {
+		t.Fatalf("create project B entry: %v", err)
+	}
+
+	points, err := repository.NewDashboardRepository(tx).SprintPoints(ctx)
+	if err != nil {
+		t.Fatalf("SprintPoints() unexpected error: %v", err)
+	}
+
+	var got *model.SprintPoints
+	for i := range points {
+		if points[i].SprintID == sprint.ID {
+			got = &points[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("SprintPoints() missing sprint %d in result", sprint.ID)
+	}
+	// Two projects' points must land in one combined row, not split apart —
+	// developer capacity is shared across a team's sub-projects (ADR-0011).
+	if got.CommittedPoints != 8 {
+		t.Errorf("CommittedPoints = %d, want 8 (5 from Website Redesign + 3 from Internal Tooling)", got.CommittedPoints)
+	}
+	if got.CommittedDonePoints != 5 {
+		t.Errorf("CommittedDonePoints = %d, want 5", got.CommittedDonePoints)
+	}
+}
+
+func TestDashboardRepository_SprintPoints_ExcludesClosedSprintsAndArchivedProjects(t *testing.T) {
 	tx := withTx(t)
 	ctx := context.Background()
 
@@ -345,27 +392,30 @@ func TestDashboardRepository_ProjectSprintPoints_ExcludesClosedSprintsAndArchive
 		t.Fatalf("archive project: %v", err)
 	}
 
-	points, err := repository.NewDashboardRepository(tx).ProjectSprintPoints(ctx)
+	points, err := repository.NewDashboardRepository(tx).SprintPoints(ctx)
 	if err != nil {
-		t.Fatalf("ProjectSprintPoints() unexpected error: %v", err)
+		t.Fatalf("SprintPoints() unexpected error: %v", err)
 	}
 
-	seenProjects := map[int64]bool{}
+	bySprint := map[int64]model.SprintPoints{}
 	for _, p := range points {
-		seenProjects[p.ProjectID] = true
+		bySprint[p.SprintID] = p
 	}
-	if !seenProjects[openProject.ID] {
-		t.Errorf("ProjectSprintPoints() missing %q (open sprint, active project)", openProject.Name)
+	open, ok := bySprint[openSprint.ID]
+	if !ok {
+		t.Fatalf("SprintPoints() missing open sprint %d in result", openSprint.ID)
 	}
-	if seenProjects[closedProject.ID] {
-		t.Errorf("ProjectSprintPoints() unexpectedly includes %q (its only sprint is closed)", closedProject.Name)
+	// Only the active project's 3 points, not the archived project's — its
+	// entry in the same open sprint must not be summed in.
+	if open.CommittedPoints != 3 {
+		t.Errorf("open sprint CommittedPoints = %d, want 3 (archived project's points excluded)", open.CommittedPoints)
 	}
-	if seenProjects[archivedProject.ID] {
-		t.Errorf("ProjectSprintPoints() unexpectedly includes %q (project is archived)", archivedProject.Name)
+	if _, ok := bySprint[closedSprint.ID]; ok {
+		t.Errorf("SprintPoints() unexpectedly includes closed sprint %d", closedSprint.ID)
 	}
 }
 
-func TestDashboardRepository_ProjectSprintPoints_ProjectSpanningTwoOpenSprintsProducesTwoRows(t *testing.T) {
+func TestDashboardRepository_SprintPoints_ProducesOneRowPerOpenSprint(t *testing.T) {
 	tx := withTx(t)
 	ctx := context.Background()
 
@@ -391,23 +441,14 @@ func TestDashboardRepository_ProjectSprintPoints_ProjectSpanningTwoOpenSprintsPr
 		t.Fatalf("create sprint9 entry: %v", err)
 	}
 
-	points, err := repository.NewDashboardRepository(tx).ProjectSprintPoints(ctx)
+	points, err := repository.NewDashboardRepository(tx).SprintPoints(ctx)
 	if err != nil {
-		t.Fatalf("ProjectSprintPoints() unexpected error: %v", err)
+		t.Fatalf("SprintPoints() unexpected error: %v", err)
 	}
 
-	var rows []model.ProjectSprintPoints
+	bySprint := map[int64]model.SprintPoints{}
 	for _, p := range points {
-		if p.ProjectID == project.ID {
-			rows = append(rows, p)
-		}
-	}
-	if len(rows) != 2 {
-		t.Fatalf("ProjectSprintPoints() = %d rows for project spanning 2 open sprints, want 2: %+v", len(rows), rows)
-	}
-	bySprint := map[int64]model.ProjectSprintPoints{}
-	for _, r := range rows {
-		bySprint[r.SprintID] = r
+		bySprint[p.SprintID] = p
 	}
 	if bySprint[sprint8.ID].CommittedPoints != 5 {
 		t.Errorf("sprint8 row CommittedPoints = %d, want 5", bySprint[sprint8.ID].CommittedPoints)

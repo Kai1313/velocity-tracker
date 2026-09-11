@@ -128,22 +128,17 @@ type SprintTicketBreakdown struct {
 	CarriedOver []SprintEntryDetail `json:"carriedOver"`
 }
 
-// ProjectSprintPoints is one project's raw committed/done/late-add totals
-// within a single currently-open sprint, plus that sprint's own date range.
-// "Committed" means points_at_entry for entries that were NOT added after
-// the sprint started; late-add points are tracked separately rather than
-// folded in, so a project's original commitment isn't diluted by mid-sprint
-// scope changes (see ADR-0004's Committed/Late-Add distinction, not yet
-// computed anywhere else in the app). Cancelled entries are excluded, per
-// the same domain rule SprintSummaries/DeveloperBreakdown already follow.
-//
-// A project with tickets split across more than one concurrently-open
-// sprint produces one row per (project, sprint) pair here — Sprint doesn't
-// belong to a Project (ADR-0003), so there is no single "active sprint per
-// project" to collapse rows into.
-type ProjectSprintPoints struct {
-	ProjectID           int64     `json:"projectId"`
-	ProjectName         string    `json:"projectName"`
+// SprintPoints is one currently-open sprint's raw committed/done/late-add
+// totals, summed across every Active project's tickets in it — developer
+// capacity is shared across a team's sub-projects, so the totals are not
+// broken out per project (see ADR-0011). "Committed" means points_at_entry
+// for entries that were NOT added after the sprint started; late-add points
+// are tracked separately rather than folded in, so the sprint's original
+// commitment isn't diluted by mid-sprint scope changes (see ADR-0004's
+// Committed/Late-Add distinction, not yet computed anywhere else in the
+// app). Cancelled entries are excluded, per the same domain rule
+// SprintSummaries/DeveloperBreakdown already follow.
+type SprintPoints struct {
 	SprintID            int64     `json:"sprintId"`
 	SprintName          string    `json:"sprintName"`
 	SprintStartDate     time.Time `json:"sprintStartDate"`
@@ -153,7 +148,7 @@ type ProjectSprintPoints struct {
 	LateAddPoints       int       `json:"lateAddPoints"`
 }
 
-// SprintHealthStatus is the early-warning signal for one ProjectSprintHealth
+// SprintHealthStatus is the early-warning signal for one SprintHealth
 // row, comparing the velocity still required to finish committed work
 // against the velocity actually being achieved.
 type SprintHealthStatus string
@@ -164,16 +159,14 @@ const (
 	HealthCritical SprintHealthStatus = "Critical"
 )
 
-// ProjectSprintHealth is a ProjectSprintPoints row plus the derived
-// day-count and velocity comparison ("Chart 42C"). RequiredVelocity is nil
-// when the sprint is Overdue (days remaining <= 0) rather than a huge or
-// infinite number — the point is triggering the alarm, not precision.
+// SprintHealth is a SprintPoints row plus the derived day-count and
+// velocity comparison ("Chart 42C"). RequiredVelocity is nil when the
+// sprint is Overdue (days remaining <= 0) rather than a huge or infinite
+// number — the point is triggering the alarm, not precision.
 // AchievedVelocity is nil on the sprint's first day (days elapsed == 0),
 // since 0 SP/day on day one reads as "the team achieved nothing," which is
 // misleading rather than informative.
-type ProjectSprintHealth struct {
-	ProjectID        int64              `json:"projectId"`
-	ProjectName      string             `json:"projectName"`
+type SprintHealth struct {
 	SprintID         int64              `json:"sprintId"`
 	SprintName       string             `json:"sprintName"`
 	CommittedPoints  int                `json:"committedPoints"`
