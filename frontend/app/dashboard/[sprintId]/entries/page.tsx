@@ -10,6 +10,7 @@ function workload(entries: SprintEntryDetail[]) {
   const counted = entries.filter((e) => e.status !== 'Cancelled');
   return {
     points: counted.reduce((sum, e) => sum + e.pointsAtEntry, 0),
+    donePoints: counted.filter((e) => e.status === 'Done').reduce((sum, e) => sum + e.pointsAtEntry, 0),
     tickets: counted.length,
     doneTickets: counted.filter((e) => e.status === 'Done').length,
   };
@@ -68,6 +69,13 @@ function DeveloperTable({ title, stats }: { title: string; stats: DeveloperStats
             </TableRow>
           </TableHeader>
           <TableBody>
+            {stats.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  No tickets in this sprint yet.
+                </TableCell>
+              </TableRow>
+            )}
             {stats.map((s) => (
               <TableRow key={s.category}>
                 <TableCell className="font-medium">{s.category}</TableCell>
@@ -130,6 +138,9 @@ export default async function SprintEntriesPage({
             <p className="mt-1 text-sm font-normal text-muted-foreground">
               {current.doneTickets}/{current.tickets} tickets
             </p>
+            <p className="mt-1 text-sm font-normal text-muted-foreground">
+              {current.donePoints} / {current.points} pts finished
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -141,40 +152,39 @@ export default async function SprintEntriesPage({
             <p className="mt-1 text-sm font-normal text-muted-foreground">
               {carriedOver.doneTickets}/{carriedOver.tickets} tickets
             </p>
+            <p className="mt-1 text-sm font-normal text-muted-foreground">
+              {carriedOver.donePoints} / {carriedOver.points} pts finished
+            </p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {currentStats.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Current workload vs. done, per developer</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <WorkloadDoneChart
-                data={currentStats.map((s) => ({ category: s.category, workload: s.workloadPoints, done: s.donePoints }))}
-              />
-            </CardContent>
-          </Card>
-        )}
-        {carriedOverStats.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Carry-over workload vs. done, per developer</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <WorkloadDoneChart
-                data={carriedOverStats.map((s) => ({ category: s.category, workload: s.workloadPoints, done: s.donePoints }))}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Current workload vs. done, per developer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WorkloadDoneChart
+              data={currentStats.map((s) => ({ category: s.category, workload: s.workloadPoints, done: s.donePoints }))}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Carry-over workload vs. done, per developer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WorkloadDoneChart
+              data={carriedOverStats.map((s) => ({ category: s.category, workload: s.workloadPoints, done: s.donePoints }))}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {currentStats.length > 0 && <DeveloperTable title="Current — by developer" stats={currentStats} />}
-        {carriedOverStats.length > 0 && <DeveloperTable title="Carry-over — by developer" stats={carriedOverStats} />}
+        <DeveloperTable title="Current — by developer" stats={currentStats} />
+        <DeveloperTable title="Carry-over — by developer" stats={carriedOverStats} />
       </div>
     </main>
   );
