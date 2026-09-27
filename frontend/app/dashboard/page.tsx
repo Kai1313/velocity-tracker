@@ -45,7 +45,7 @@ export default async function DashboardPage() {
           <CardContent className="text-3xl font-bold">
             {totalWorkload}
             <p className="mt-1 text-sm font-normal text-muted-foreground">
-              Sum of every sprint&apos;s committed points, including re-planned carry-over
+              Sum of every sprint&apos;s workload — all planned points, including carry-over and late adds
             </p>
           </CardContent>
         </Card>

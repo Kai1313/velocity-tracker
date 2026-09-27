@@ -12,7 +12,10 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 
 	if err := repository.RunMigrations(cfg.DatabaseURL); err != nil {
 		log.Fatalf("migrations failed: %v", err)
