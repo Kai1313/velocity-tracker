@@ -18,6 +18,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { DeleteConfirmButton } from '@/components/admin/delete-confirm-button';
+import { useEntityList } from '@/lib/hooks/use-entity-list';
+import { useFormDialogState } from '@/lib/hooks/use-form-dialog';
 import { listProjects, createProject, updateProject, deleteProject, type Project, type ProjectStatus } from '@/lib/api';
 
 function ProjectFormDialog({
@@ -28,11 +30,9 @@ function ProjectFormDialog({
   onSaved: (project: Project) => void;
 }) {
   const isEdit = project !== undefined;
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, pending, error, setError, submit } = useFormDialogState();
   const [name, setName] = useState(project?.name ?? '');
   const [status, setStatus] = useState<ProjectStatus>(project?.status ?? 'Active');
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -40,21 +40,11 @@ function ProjectFormDialog({
       setStatus(project?.status ?? 'Active');
       setError(null);
     }
-  }, [open, project]);
+  }, [open, project, setError]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setPending(true);
-    setError(null);
-    try {
-      const saved = isEdit ? await updateProject(project.id, { name, status }) : await createProject({ name });
-      onSaved(saved);
-      setOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setPending(false);
-    }
+    submit(() => (isEdit ? updateProject(project.id, { name, status }) : createProject({ name })), onSaved);
   }
 
   return (
@@ -103,26 +93,11 @@ function ProjectFormDialog({
 }
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load projects'));
-  }, []);
-
-  function upsert(project: Project) {
-    setProjects((prev) => {
-      if (!prev) return [project];
-      const exists = prev.some((p) => p.id === project.id);
-      return exists ? prev.map((p) => (p.id === project.id ? project : p)) : [...prev, project];
-    });
-  }
+  const { items: projects, error, upsert, remove } = useEntityList(listProjects, 'Failed to load projects');
 
   async function handleDelete(id: number) {
     await deleteProject(id);
-    setProjects((prev) => prev?.filter((p) => p.id !== id) ?? null);
+    remove(id);
   }
 
   return (

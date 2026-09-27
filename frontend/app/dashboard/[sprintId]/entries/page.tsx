@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
+import { WorkloadDoneTable } from '@/components/dashboard/workload-done-table';
 import { ApiError, getSprint, getSprintTicketBreakdown, type SprintEntryDetail } from '@/lib/api';
 
 function workload(entries: SprintEntryDetail[]) {
@@ -52,47 +52,15 @@ function developerStats(entries: SprintEntryDetail[]): DeveloperStats[] {
   );
 }
 
-function DeveloperTable({ title, stats }: { title: string; stats: DeveloperStats[] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Developer</TableHead>
-              <TableHead>Workload (pts)</TableHead>
-              <TableHead>Done (pts)</TableHead>
-              <TableHead>Tickets</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {stats.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  No tickets in this sprint yet.
-                </TableCell>
-              </TableRow>
-            )}
-            {stats.map((s) => (
-              <TableRow key={s.category}>
-                <TableCell className="font-medium">{s.category}</TableCell>
-                <TableCell>{s.workloadPoints}</TableCell>
-                <TableCell>
-                  {s.donePoints}/{s.workloadPoints}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {s.doneTickets}/{s.workloadTickets} tickets
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  );
+function developerRows(stats: DeveloperStats[]) {
+  return stats.map((s) => ({
+    key: s.category,
+    label: s.category,
+    workloadPoints: s.workloadPoints,
+    donePoints: s.donePoints,
+    workloadTickets: s.workloadTickets,
+    doneTickets: s.doneTickets,
+  }));
 }
 
 export default async function SprintEntriesPage({
@@ -186,8 +154,8 @@ export default async function SprintEntriesPage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <DeveloperTable title="Current — by developer" stats={currentStats} />
-        <DeveloperTable title="Carry-over — by developer" stats={carriedOverStats} />
+        <WorkloadDoneTable title="Current — by developer" rows={developerRows(currentStats)} />
+        <WorkloadDoneTable title="Carry-over — by developer" rows={developerRows(carriedOverStats)} />
       </div>
     </main>
   );

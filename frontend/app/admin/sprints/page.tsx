@@ -18,6 +18,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { DeleteConfirmButton } from '@/components/admin/delete-confirm-button';
+import { useEntityList } from '@/lib/hooks/use-entity-list';
+import { useFormDialogState } from '@/lib/hooks/use-form-dialog';
 import { listSprints, createSprint, updateSprint, deleteSprint, type Sprint } from '@/lib/api';
 
 // HTML date inputs use YYYY-MM-DD; the backend's Go time.Time fields marshal as RFC3339.
@@ -37,13 +39,11 @@ function SprintFormDialog({
   onSaved: (sprint: Sprint) => void;
 }) {
   const isEdit = sprint !== undefined;
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, pending, error, setError, submit } = useFormDialogState();
   const [name, setName] = useState(sprint?.name ?? '');
   const [startDate, setStartDate] = useState(sprint ? toDateInputValue(sprint.startDate) : '');
   const [endDate, setEndDate] = useState(sprint ? toDateInputValue(sprint.endDate) : '');
   const [status, setStatus] = useState<Sprint['status']>(sprint?.status ?? 'Open');
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -53,22 +53,12 @@ function SprintFormDialog({
       setStatus(sprint?.status ?? 'Open');
       setError(null);
     }
-  }, [open, sprint]);
+  }, [open, sprint, setError]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setPending(true);
-    setError(null);
-    try {
-      const input = { name, startDate: toRFC3339(startDate), endDate: toRFC3339(endDate) };
-      const saved = isEdit ? await updateSprint(sprint.id, { ...input, status }) : await createSprint(input);
-      onSaved(saved);
-      setOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setPending(false);
-    }
+    const input = { name, startDate: toRFC3339(startDate), endDate: toRFC3339(endDate) };
+    submit(() => (isEdit ? updateSprint(sprint.id, { ...input, status }) : createSprint(input)), onSaved);
   }
 
   return (
@@ -135,26 +125,11 @@ function SprintFormDialog({
 }
 
 export default function SprintsPage() {
-  const [sprints, setSprints] = useState<Sprint[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listSprints()
-      .then(setSprints)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sprints'));
-  }, []);
-
-  function upsert(sprint: Sprint) {
-    setSprints((prev) => {
-      if (!prev) return [sprint];
-      const exists = prev.some((s) => s.id === sprint.id);
-      return exists ? prev.map((s) => (s.id === sprint.id ? sprint : s)) : [...prev, sprint];
-    });
-  }
+  const { items: sprints, error, upsert, remove } = useEntityList(listSprints, 'Failed to load sprints');
 
   async function handleDelete(id: number) {
     await deleteSprint(id);
-    setSprints((prev) => prev?.filter((s) => s.id !== id) ?? null);
+    remove(id);
   }
 
   return (

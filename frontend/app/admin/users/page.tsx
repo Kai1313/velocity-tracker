@@ -17,6 +17,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { DeleteConfirmButton } from '@/components/admin/delete-confirm-button';
+import { useEntityList } from '@/lib/hooks/use-entity-list';
+import { useFormDialogState } from '@/lib/hooks/use-form-dialog';
 import { listUsers, createUser, updateUser, deleteUser, type User, type Role } from '@/lib/api';
 
 function UserFormDialog({
@@ -27,11 +29,9 @@ function UserFormDialog({
   onSaved: (user: User) => void;
 }) {
   const isEdit = user !== undefined;
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, pending, error, setError, submit } = useFormDialogState();
   const [name, setName] = useState(user?.name ?? '');
   const [role, setRole] = useState<Role>(user?.role ?? 'Developer');
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -39,21 +39,11 @@ function UserFormDialog({
       setRole(user?.role ?? 'Developer');
       setError(null);
     }
-  }, [open, user]);
+  }, [open, user, setError]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setPending(true);
-    setError(null);
-    try {
-      const saved = isEdit ? await updateUser(user.id, { name, role }) : await createUser({ name, role });
-      onSaved(saved);
-      setOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setPending(false);
-    }
+    submit(() => (isEdit ? updateUser(user.id, { name, role }) : createUser({ name, role })), onSaved);
   }
 
   return (
@@ -96,26 +86,11 @@ function UserFormDialog({
 }
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listUsers()
-      .then(setUsers)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load users'));
-  }, []);
-
-  function upsert(user: User) {
-    setUsers((prev) => {
-      if (!prev) return [user];
-      const exists = prev.some((u) => u.id === user.id);
-      return exists ? prev.map((u) => (u.id === user.id ? user : u)) : [...prev, user];
-    });
-  }
+  const { items: users, error, upsert, remove } = useEntityList(listUsers, 'Failed to load users');
 
   async function handleDelete(id: number) {
     await deleteUser(id);
-    setUsers((prev) => prev?.filter((u) => u.id !== id) ?? null);
+    remove(id);
   }
 
   return (

@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
+import { WorkloadDoneTable } from '@/components/dashboard/workload-done-table';
 import { ApiError, getSprint, getSprintDeveloperBreakdown } from '@/lib/api';
 
 export default async function SprintDashboardPage({
@@ -77,44 +77,17 @@ export default async function SprintDashboardPage({
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>By developer</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Developer</TableHead>
-                <TableHead>Workload (pts)</TableHead>
-                <TableHead>Done (pts)</TableHead>
-                <TableHead>Tickets</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {breakdown.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    No tickets in this sprint yet.
-                  </TableCell>
-                </TableRow>
-              )}
-              {breakdown.map((d) => (
-                <TableRow key={d.userId ?? 'unassigned'}>
-                  <TableCell className="font-medium">{d.name}</TableCell>
-                  <TableCell>{d.workloadPoints}</TableCell>
-                  <TableCell>
-                    {d.donePoints}/{d.workloadPoints}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {d.doneTickets}/{d.workloadTickets} tickets
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <WorkloadDoneTable
+        title="By developer"
+        rows={breakdown.map((d) => ({
+          key: d.userId ?? 'unassigned',
+          label: d.name,
+          workloadPoints: d.workloadPoints,
+          donePoints: d.donePoints,
+          workloadTickets: d.workloadTickets,
+          doneTickets: d.doneTickets,
+        }))}
+      />
     </main>
   );
 }

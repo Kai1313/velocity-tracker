@@ -21,6 +21,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { DeleteConfirmButton } from '@/components/admin/delete-confirm-button';
+import { useFormDialogState } from '@/lib/hooks/use-form-dialog';
+import { lookupLabel } from '@/lib/lookup';
 import {
   listSprintEntries,
   createSprintEntry,
@@ -44,10 +46,12 @@ const ALL = 'all';
 // so every ticket reference on this page is prefixed with its project name
 // to stay unambiguous once two projects reuse the same ticket number.
 function ticketLabel(id: number, tickets: TicketDetail[], projects: Project[]) {
-  const t = tickets.find((t) => t.id === id);
-  if (!t) return `Ticket #${id}`;
-  const project = projects.find((p) => p.id === t.projectId)?.name ?? `Project #${t.projectId}`;
-  return `${project} - ${t.title}`;
+  return lookupLabel(
+    tickets,
+    id,
+    (t) => `${lookupLabel(projects, t.projectId, (p) => p.name, `Project #${t.projectId}`)} - ${t.title}`,
+    `Ticket #${id}`,
+  );
 }
 
 function EntryFormDialog({
@@ -66,7 +70,7 @@ function EntryFormDialog({
   onSaved: (entry: SprintEntry) => void;
 }) {
   const isEdit = entry !== undefined;
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, pending, error, setError, submit } = useFormDialogState();
   const [ticketId, setTicketId] = useState<number | null>(entry?.ticketId ?? null);
   const [sprintId, setSprintId] = useState(entry?.sprintId ?? sprints[0]?.id ?? 0);
   const [status, setStatus] = useState<EntryStatus>(entry?.status ?? 'NotDone');
@@ -74,8 +78,6 @@ function EntryFormDialog({
   const [carriedFrom, setCarriedFrom] = useState<string>(entry?.carriedFrom != null ? String(entry.carriedFrom) : NONE);
   const [carriedFromTouched, setCarriedFromTouched] = useState(false);
   const [points, setPoints] = useState(entry?.pointsAtEntry ?? 1);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const parentSprint = sprints.find((s) => s.id === (entry?.sprintId ?? sprintId));
   const locked = isEdit && parentSprint?.status === 'Closed';
@@ -91,7 +93,7 @@ function EntryFormDialog({
       setPoints(entry?.pointsAtEntry ?? 1);
       setError(null);
     }
-  }, [open, entry, tickets, sprints]);
+  }, [open, entry, tickets, sprints, setError]);
 
   // Only entries for the same ticket, still NotDone, from a sprint that's
   // already Closed are legitimate carry-over sources — anything else is
@@ -123,39 +125,32 @@ function EntryFormDialog({
   }, [open, ticketId, carriedFromTouched, carriedFrom, carryCandidates.length]);
 
   function sprintLabel(id: number) {
-    return sprints.find((s) => s.id === id)?.name ?? `Sprint #${id}`;
+    return lookupLabel(sprints, id, (s) => s.name, `Sprint #${id}`);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isEdit && ticketId === null) return;
-    setPending(true);
-    setError(null);
     const carriedFromValue = carriedFrom === NONE ? null : Number(carriedFrom);
-    try {
-      const saved =
+    submit(
+      () =>
         isEdit && entry
-          ? await updateSprintEntry(entry.id, {
+          ? updateSprintEntry(entry.id, {
               status,
               addedAfterSprintStart: addedAfterStart,
               carriedFrom: carriedFromValue,
               pointsAtEntry: points,
             })
-          : await createSprintEntry({
+          : createSprintEntry({
               ticketId: ticketId as number,
               sprintId,
               status,
               addedAfterSprintStart: addedAfterStart,
               carriedFrom: carriedFromValue,
               pointsAtEntry: points,
-            });
-      onSaved(saved);
-      setOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setPending(false);
-    }
+            }),
+      onSaved,
+    );
   }
 
   return (
@@ -384,7 +379,7 @@ function SprintEntriesPageInner() {
   }
 
   function sprintName(id: number) {
-    return sprints.find((s) => s.id === id)?.name ?? `#${id}`;
+    return lookupLabel(sprints, id, (s) => s.name, `#${id}`);
   }
   function sprintClosed(id: number) {
     return sprints.find((s) => s.id === id)?.status === 'Closed';

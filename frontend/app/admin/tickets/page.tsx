@@ -18,6 +18,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { DeleteConfirmButton } from '@/components/admin/delete-confirm-button';
+import { useEntityList } from '@/lib/hooks/use-entity-list';
+import { useFormDialogState } from '@/lib/hooks/use-form-dialog';
+import { lookupLabel } from '@/lib/lookup';
 import {
   listTickets,
   createTicket,
@@ -58,15 +61,13 @@ function TicketFormDialog({
   onSaved: (ticket: TicketDetail) => void;
 }) {
   const isEdit = ticket !== undefined;
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, pending, error, setError, submit } = useFormDialogState();
   const [projectId, setProjectId] = useState(ticket?.projectId ?? projects[0]?.id ?? 0);
   const [title, setTitle] = useState(ticket?.title ?? '');
   const [storyPoints, setStoryPoints] = useState(ticket?.storyPoints ?? 1);
   const [assigneeId, setAssigneeId] = useState<string>(
     ticket?.assigneeId != null ? String(ticket.assigneeId) : UNASSIGNED,
   );
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -76,27 +77,17 @@ function TicketFormDialog({
       setAssigneeId(ticket?.assigneeId != null ? String(ticket.assigneeId) : UNASSIGNED);
       setError(null);
     }
-  }, [open, ticket, projects]);
+  }, [open, ticket, projects, setError]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setPending(true);
-    setError(null);
     const input = {
       projectId,
       title,
       storyPoints,
       assigneeId: assigneeId === UNASSIGNED ? null : Number(assigneeId),
     };
-    try {
-      const saved = isEdit ? await updateTicket(ticket.id, input) : await createTicket(input);
-      onSaved(saved);
-      setOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setPending(false);
-    }
+    submit(() => (isEdit ? updateTicket(ticket.id, input) : createTicket(input)), onSaved);
   }
 
   return (
@@ -169,10 +160,11 @@ function TicketFormDialog({
 }
 
 export default function TicketsPage() {
-  const [tickets, setTickets] = useState<TicketDetail[] | null>(null);
+  const { items: tickets, error: ticketsError, upsert, remove } = useEntityList(listTickets, 'Failed to load tickets');
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const error = ticketsError ?? lookupError;
 
   const [projectFilter, setProjectFilter] = useState(ALL);
   const [assigneeFilter, setAssigneeFilter] = useState(ALL);
@@ -180,35 +172,26 @@ export default function TicketsPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    Promise.all([listTickets(), listProjects(), listUsers()])
-      .then(([t, p, u]) => {
-        setTickets(t);
+    Promise.all([listProjects(), listUsers()])
+      .then(([p, u]) => {
         setProjects(p);
         setUsers(u);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load tickets'));
+      .catch((err) => setLookupError(err instanceof Error ? err.message : 'Failed to load projects/users'));
   }, []);
-
-  function upsert(ticket: TicketDetail) {
-    setTickets((prev) => {
-      if (!prev) return [ticket];
-      const exists = prev.some((t) => t.id === ticket.id);
-      return exists ? prev.map((t) => (t.id === ticket.id ? ticket : t)) : [...prev, ticket];
-    });
-  }
 
   async function handleDelete(id: number) {
     await deleteTicket(id);
-    setTickets((prev) => prev?.filter((t) => t.id !== id) ?? null);
+    remove(id);
   }
 
   function projectName(id: number) {
-    return projects.find((p) => p.id === id)?.name ?? `#${id}`;
+    return lookupLabel(projects, id, (p) => p.name, `#${id}`);
   }
 
   function assigneeName(id: number | null) {
     if (id === null) return 'Unassigned';
-    return users.find((u) => u.id === id)?.name ?? `#${id}`;
+    return lookupLabel(users, id, (u) => u.name, `#${id}`);
   }
 
   const hasActiveFilters = Boolean(
