@@ -9,12 +9,18 @@ stays accurate.
 
 ## Backend (Go)
 
-- [ ] CRUD handler pattern (decode → validate → call service → respond)
+- [x] CRUD handler pattern (decode → validate → call service → respond)
       repeated near-verbatim across `user_handler.go`, `project_handler.go`,
       `ticket_handler.go`, `sprint_handler.go`, `sprintentry_handler.go`.
       Same shape in `user_repository.go`, `project_repository.go`,
       `ticket_repository.go`, `sprint_repository.go` (Create/Get/List/
-      Update/Delete → wrap error). — violates **B1**
+      Update/Delete → wrap error). — violates **B1**. Fixed: the handler
+      half only — generic `handleCreate`/`handleGet`/`handleList`/
+      `handleUpdate`/`handleDelete` helpers (`crud.go`) using Go generics,
+      applied to all 5 handlers. Repository-layer duplication is
+      deliberately left alone: a generic SQL CRUD layer is a separate,
+      riskier change with less payoff (each repo's columns are a real
+      domain difference, not pure boilerplate).
 - [x] `sprintentry_service.go:82` — 6 positional params where the request
       struct already exists at the handler layer. — violates **B2**.
       Fixed: added `CreateSprintEntryInput`/`UpdateSprintEntryInput`, passed
@@ -45,16 +51,28 @@ implemented — no contradictions found.
 
 ## Frontend (TypeScript / Next.js)
 
-- [ ] Five admin CRUD pages (`app/admin/{users,projects,sprints,tickets,
+- [x] Five admin CRUD pages (`app/admin/{users,projects,sprints,tickets,
       sprint-entries}/page.tsx`) each reimplement an identical form-dialog +
       list-fetch + upsert + delete shape (e.g. `users/page.tsx:44-57` vs.
       `projects/page.tsx:45-58` vs. `sprints/page.tsx:58-72`). ~400
       duplicated lines; any change to error/pending-state UX currently means
-      editing all 5 files. — violates **F1**
-- [ ] Three near-identical developer/workload/done tables
+      editing all 5 files. — violates **F1**. Fixed: `useEntityList` (list
+      fetch/upsert/remove) applied to Users/Projects/Sprints/Tickets, and
+      `useFormDialogState` (open/pending/error/submit) applied to all 5
+      dialogs including Sprint Entries. Sprint Entries' page-level
+      filtering/carry-over/orphan-detection logic is untouched — too
+      bespoke to fit either hook without a leaky abstraction.
+- [x] Three near-identical developer/workload/done tables
       (`dashboard/page.tsx:83-121`, `dashboard/[sprintId]/page.tsx:82-113`,
       `entries/page.tsx:55-96`), plus an ad-hoc find-by-id-or-fallback-label
-      helper reimplemented in nearly every admin page. — violates **F2**
+      helper reimplemented in nearly every admin page. — violates **F2**.
+      Fixed: `lookupLabel` utility replacing the repeated find-by-id
+      helpers (tickets/sprint-entries pages); shared `WorkloadDoneTable`
+      component replacing the duplicated Developer/Workload/Done/Tickets
+      table on `dashboard/[sprintId]/page.tsx` and `entries/page.tsx` (the
+      two literally-identical instances — `dashboard/page.tsx`'s table has
+      a different shape, an extra Progress column and per-sprint not
+      per-developer rows, so it was left as its own thing).
 - [x] `lib/api.ts` — `getJSON` (115-121) throws a plain `Error` with no
       status, while `requestJSON` (123-137) throws a typed `ApiError`.
       — violates **F3**. Fixed: `getJSON` now throws `ApiError` with the
