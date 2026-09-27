@@ -15,16 +15,25 @@ stays accurate.
       Same shape in `user_repository.go`, `project_repository.go`,
       `ticket_repository.go`, `sprint_repository.go` (Create/Get/List/
       Update/Delete → wrap error). — violates **B1**
-- [ ] `sprintentry_service.go:82` — 6 positional params where the request
-      struct already exists at the handler layer. — violates **B2**
-- [ ] `sprintentry_handler.go:67-70` — casts a raw query string directly to
+- [x] `sprintentry_service.go:82` — 6 positional params where the request
+      struct already exists at the handler layer. — violates **B2**.
+      Fixed: added `CreateSprintEntryInput`/`UpdateSprintEntryInput`, passed
+      through from the handler instead of exploded params.
+- [x] `sprintentry_handler.go:67-70` — casts a raw query string directly to
       `model.EntryStatus(v)` with no validation; an invalid value silently
-      filters to zero rows instead of erroring. — violates **B3**
-- [ ] `sprintentry_service.go:114-142` (`Update`) — never checks
-      `carriedFrom != id` (self-reference). — violates **B4**
-- [ ] `config.go:10-15` — `DatabaseURL` defaults to `""` with no validation
+      filters to zero rows instead of erroring. — violates **B3**.
+      Fixed: `parseSprintEntryFilter` now rejects an invalid `status` value
+      with `apperr.ErrValidation` (422), matching the existing enum-validation
+      pattern in `validateEntryFields`.
+- [x] `sprintentry_service.go:114-142` (`Update`) — never checks
+      `carriedFrom != id` (self-reference). — violates **B4**.
+      Fixed: `Update` now rejects a self-referencing `carriedFrom` before
+      calling `validateCarriedFrom`.
+- [x] `config.go:10-15` — `DatabaseURL` defaults to `""` with no validation
       in `Load()`; fails loud only later, via `RunMigrations`/`NewPostgres`
-      in `main.go`. — violates **B5**
+      in `main.go`. — violates **B5**.
+      Fixed: `Load()` now returns an error when `DATABASE_URL` is unset;
+      `main.go` fails fast on it.
 
 Not flagged as issues (documented as intentional / already correct):
 `cors.go:10`'s `Access-Control-Allow-Origin: *` (explicit no-auth MVP
@@ -46,17 +55,23 @@ implemented — no contradictions found.
       (`dashboard/page.tsx:83-121`, `dashboard/[sprintId]/page.tsx:82-113`,
       `entries/page.tsx:55-96`), plus an ad-hoc find-by-id-or-fallback-label
       helper reimplemented in nearly every admin page. — violates **F2**
-- [ ] `lib/api.ts` — `getJSON` (115-121) throws a plain `Error` with no
+- [x] `lib/api.ts` — `getJSON` (115-121) throws a plain `Error` with no
       status, while `requestJSON` (123-137) throws a typed `ApiError`.
-      — violates **F3**
-- [ ] `dashboard/[sprintId]/page.tsx:22-26` and `entries/page.tsx:111-115` —
+      — violates **F3**. Fixed: `getJSON` now throws `ApiError` with the
+      response status, same as `requestJSON`.
+- [x] `dashboard/[sprintId]/page.tsx:22-26` and `entries/page.tsx:111-115` —
       `catch { notFound(); }` renders a backend 500 identically to "sprint
       doesn't exist," a direct consequence of the **F3** gap above.
-      — violates **F4**
-- [ ] `dashboard/page.tsx:48` — labels `workloadPoints` as "committed
+      — violates **F4**. Fixed: both now call `notFound()` only when the
+      caught error is `ApiError` with `status === 404`, otherwise rethrow.
+      Verified manually (backend stopped → HTTP 500 with an error digest,
+      not the not-found page) and via a new Playwright regression test for
+      the genuine-404 path.
+- [x] `dashboard/page.tsx:48` — labels `workloadPoints` as "committed
       points," but CONTEXT.md's precise **Committed Points at Sprint Start**
       and ADR-0004 both describe this dashboard metric as a simpler v1
-      figure without that split. — violates **P4**
+      figure without that split. — violates **P4**. Fixed: reworded to
+      "workload" language matching the field's own name.
 
 Not flagged as issues (below rule-of-three, or already correct): the
 `sprintId`-parse-then-`notFound()` block duplicated across only 2 files;
@@ -64,3 +79,20 @@ Not flagged as issues (below rule-of-three, or already correct): the
 `sprint-entries/page.tsx`. Sprint Health components
 (`components/dashboard/sprint-health-*.tsx`) correctly match
 CONTEXT.md/ADR-0010/ADR-0011 — no misuse found.
+
+## Pre-existing e2e issues found during verification (out of scope, not fixed)
+
+Discovered while running the full Playwright suite to verify the F3/F4 fix.
+Neither relates to anything changed in this pass — both predate it and are
+left for a separate fix:
+
+- `dashboard.spec.ts:45` — the "clicking sprint workload…" test asserts
+  `getByText('5', { exact: true })` against a card that renders
+  `{points} <span>pts</span>`; the accessibility tree merges these into
+  `"5 pts"`, so no element ever has the exact text `"5"`. Test-assertion bug,
+  not a product bug.
+- `sprint-entries.spec.ts:35` and `:61` — both use
+  `page.locator('#entry-ticket').selectOption(...)`, but `#entry-ticket` is
+  now a custom `Combobox` component (see commit `31ea4b9`, "implement
+  Combobox component"), not a native `<select>`; `selectOption()` only works
+  against native selects. The spec was never updated for that migration.
