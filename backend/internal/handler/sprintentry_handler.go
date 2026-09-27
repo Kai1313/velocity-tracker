@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -36,24 +37,16 @@ type updateSprintEntryRequest struct {
 }
 
 func (h *SprintEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req createSprintEntryRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	e, err := h.svc.Create(r.Context(), service.CreateSprintEntryInput{
-		TicketID:              req.TicketID,
-		SprintID:              req.SprintID,
-		Status:                req.Status,
-		AddedAfterSprintStart: req.AddedAfterSprintStart,
-		CarriedFrom:           req.CarriedFrom,
-		PointsAtEntry:         req.PointsAtEntry,
+	handleCreate(w, r, func(ctx context.Context, req createSprintEntryRequest) (*model.SprintEntry, error) {
+		return h.svc.Create(ctx, service.CreateSprintEntryInput{
+			TicketID:              req.TicketID,
+			SprintID:              req.SprintID,
+			Status:                req.Status,
+			AddedAfterSprintStart: req.AddedAfterSprintStart,
+			CarriedFrom:           req.CarriedFrom,
+			PointsAtEntry:         req.PointsAtEntry,
+		})
 	})
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, e)
 }
 
 // parseSprintEntryFilter reads sprintId/projectId/status/carriedOver/search
@@ -107,52 +100,20 @@ func (h *SprintEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SprintEntryHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	e, err := h.svc.Get(r.Context(), id)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, e)
+	handleGet(w, r, h.svc.Get)
 }
 
 func (h *SprintEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	var req updateSprintEntryRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	e, err := h.svc.Update(r.Context(), id, service.UpdateSprintEntryInput{
-		Status:                req.Status,
-		AddedAfterSprintStart: req.AddedAfterSprintStart,
-		CarriedFrom:           req.CarriedFrom,
-		PointsAtEntry:         req.PointsAtEntry,
+	handleUpdate(w, r, func(ctx context.Context, id int64, req updateSprintEntryRequest) (*model.SprintEntry, error) {
+		return h.svc.Update(ctx, id, service.UpdateSprintEntryInput{
+			Status:                req.Status,
+			AddedAfterSprintStart: req.AddedAfterSprintStart,
+			CarriedFrom:           req.CarriedFrom,
+			PointsAtEntry:         req.PointsAtEntry,
+		})
 	})
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, e)
 }
 
 func (h *SprintEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	if err := h.svc.Delete(r.Context(), id); err != nil {
-		writeError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDelete(w, r, h.svc.Delete)
 }

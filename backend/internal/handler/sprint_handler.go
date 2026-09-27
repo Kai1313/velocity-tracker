@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -30,70 +31,25 @@ type updateSprintRequest struct {
 }
 
 func (h *SprintHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req createSprintRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	sp, err := h.svc.Create(r.Context(), req.Name, req.StartDate, req.EndDate)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, sp)
+	handleCreate(w, r, func(ctx context.Context, req createSprintRequest) (*model.Sprint, error) {
+		return h.svc.Create(ctx, req.Name, req.StartDate, req.EndDate)
+	})
 }
 
 func (h *SprintHandler) List(w http.ResponseWriter, r *http.Request) {
-	sprints, err := h.svc.List(r.Context())
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, sprints)
+	handleList(w, r, h.svc.List)
 }
 
 func (h *SprintHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	sp, err := h.svc.Get(r.Context(), id)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, sp)
+	handleGet(w, r, h.svc.Get)
 }
 
 func (h *SprintHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	var req updateSprintRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	sp, err := h.svc.Update(r.Context(), id, req.Name, req.StartDate, req.EndDate, req.Status)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, sp)
+	handleUpdate(w, r, func(ctx context.Context, id int64, req updateSprintRequest) (*model.Sprint, error) {
+		return h.svc.Update(ctx, id, req.Name, req.StartDate, req.EndDate, req.Status)
+	})
 }
 
 func (h *SprintHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	if err := h.svc.Delete(r.Context(), id); err != nil {
-		writeError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDelete(w, r, h.svc.Delete)
 }

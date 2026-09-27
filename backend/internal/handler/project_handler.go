@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
 	"velocity-tracker/backend/internal/model"
@@ -25,70 +26,25 @@ type updateProjectRequest struct {
 }
 
 func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req createProjectRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	p, err := h.svc.Create(r.Context(), req.Name)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, p)
+	handleCreate(w, r, func(ctx context.Context, req createProjectRequest) (*model.Project, error) {
+		return h.svc.Create(ctx, req.Name)
+	})
 }
 
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
-	projects, err := h.svc.List(r.Context())
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, projects)
+	handleList(w, r, h.svc.List)
 }
 
 func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	p, err := h.svc.Get(r.Context(), id)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, p)
+	handleGet(w, r, h.svc.Get)
 }
 
 func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	var req updateProjectRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	p, err := h.svc.Update(r.Context(), id, req.Name, req.Status)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, p)
+	handleUpdate(w, r, func(ctx context.Context, id int64, req updateProjectRequest) (*model.Project, error) {
+		return h.svc.Update(ctx, id, req.Name, req.Status)
+	})
 }
 
 func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	if err := h.svc.Delete(r.Context(), id); err != nil {
-		writeError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDelete(w, r, h.svc.Delete)
 }

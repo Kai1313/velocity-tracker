@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
+	"velocity-tracker/backend/internal/model"
 	"velocity-tracker/backend/internal/service"
 )
 
@@ -22,70 +24,25 @@ type ticketRequest struct {
 }
 
 func (h *TicketHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req ticketRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	t, err := h.svc.Create(r.Context(), req.ProjectID, req.Title, req.StoryPoints, req.AssigneeID)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, t)
+	handleCreate(w, r, func(ctx context.Context, req ticketRequest) (*model.Ticket, error) {
+		return h.svc.Create(ctx, req.ProjectID, req.Title, req.StoryPoints, req.AssigneeID)
+	})
 }
 
 func (h *TicketHandler) List(w http.ResponseWriter, r *http.Request) {
-	tickets, err := h.svc.List(r.Context())
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, tickets)
+	handleList(w, r, h.svc.List)
 }
 
 func (h *TicketHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	t, err := h.svc.Get(r.Context(), id)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, t)
+	handleGet(w, r, h.svc.Get)
 }
 
 func (h *TicketHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	var req ticketRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	t, err := h.svc.Update(r.Context(), id, req.ProjectID, req.Title, req.StoryPoints, req.AssigneeID)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, t)
+	handleUpdate(w, r, func(ctx context.Context, id int64, req ticketRequest) (*model.Ticket, error) {
+		return h.svc.Update(ctx, id, req.ProjectID, req.Title, req.StoryPoints, req.AssigneeID)
+	})
 }
 
 func (h *TicketHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
-		return
-	}
-	if err := h.svc.Delete(r.Context(), id); err != nil {
-		writeError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDelete(w, r, h.svc.Delete)
 }
