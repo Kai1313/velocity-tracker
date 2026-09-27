@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
-import { getSprint, getSprintDeveloperBreakdown } from '@/lib/api';
+import { ApiError, getSprint, getSprintDeveloperBreakdown } from '@/lib/api';
 
 export default async function SprintDashboardPage({
   params,
@@ -21,8 +21,11 @@ export default async function SprintDashboardPage({
   let breakdown;
   try {
     [sprint, breakdown] = await Promise.all([getSprint(id), getSprintDeveloperBreakdown(id)]);
-  } catch {
-    notFound();
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      notFound();
+    }
+    throw err;
   }
 
   const totalWorkload = breakdown.reduce((sum, d) => sum + d.workloadPoints, 0);

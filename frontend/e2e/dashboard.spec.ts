@@ -59,4 +59,10 @@ test.describe('Dashboard / Sprint detail', () => {
     await expect(carriedCard.getByText('3', { exact: true })).toBeVisible();
     await expect(carriedCard.getByText('1 ticket', { exact: true })).toBeVisible();
   });
+
+  test('a nonexistent sprint id renders the not-found page, not a generic error', async ({ page }) => {
+    const response = await page.goto('/dashboard/999999999');
+    expect(response?.status()).toBe(404);
+    await expect(page.getByText('This page could not be found.')).toBeVisible();
+  });
 });

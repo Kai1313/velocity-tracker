@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { WorkloadDoneChart } from '@/components/dashboard/workload-done-chart';
-import { getSprint, getSprintTicketBreakdown, type SprintEntryDetail } from '@/lib/api';
+import { ApiError, getSprint, getSprintTicketBreakdown, type SprintEntryDetail } from '@/lib/api';
 
 function workload(entries: SprintEntryDetail[]) {
   const counted = entries.filter((e) => e.status !== 'Cancelled');
@@ -110,8 +110,11 @@ export default async function SprintEntriesPage({
   let ticketBreakdown;
   try {
     [sprint, ticketBreakdown] = await Promise.all([getSprint(id), getSprintTicketBreakdown(id)]);
-  } catch {
-    notFound();
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      notFound();
+    }
+    throw err;
   }
 
   const current = workload(ticketBreakdown.current);

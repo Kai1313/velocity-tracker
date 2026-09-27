@@ -115,7 +115,8 @@ export class ApiError extends Error {
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${backendUrl()}${path}`, { cache: 'no-store' });
   if (!res.ok) {
-    throw new Error(`${path} responded ${res.status}`);
+    const payload = await res.json().catch(() => null);
+    throw new ApiError(payload?.error ?? `${path} responded ${res.status}`, res.status);
   }
   return (await res.json()) as T;
 }
