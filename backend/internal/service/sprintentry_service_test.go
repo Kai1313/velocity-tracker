@@ -76,6 +76,24 @@ func (f *fakeSprintLookup) Get(ctx context.Context, id int64) (*model.Sprint, er
 	return s, nil
 }
 
+// createEntry is a small test helper wrapping svc.Create's input struct, so
+// individual tests can pass just the fields they care about.
+func createEntry(
+	svc *service.SprintEntryService,
+	ticketID, sprintID int64,
+	status model.EntryStatus,
+	carriedFrom *int64,
+	points int,
+) (*model.SprintEntry, error) {
+	return svc.Create(context.Background(), service.CreateSprintEntryInput{
+		TicketID:      ticketID,
+		SprintID:      sprintID,
+		Status:        status,
+		CarriedFrom:   carriedFrom,
+		PointsAtEntry: points,
+	})
+}
+
 func TestSprintEntryService_Update_RejectedWhenSprintClosed(t *testing.T) {
 	repo := newFakeSprintEntryRepo()
 	sprints := &fakeSprintLookup{sprints: map[int64]*model.Sprint{
@@ -83,12 +101,15 @@ func TestSprintEntryService_Update_RejectedWhenSprintClosed(t *testing.T) {
 	}}
 	svc := service.NewSprintEntryService(repo, sprints)
 
-	entry, err := svc.Create(context.Background(), 1, 10, model.EntryNotDone, false, nil, 5)
+	entry, err := createEntry(svc, 1, 10, model.EntryNotDone, nil, 5)
 	if err != nil {
 		t.Fatalf("Create() unexpected error: %v", err)
 	}
 
-	_, err = svc.Update(context.Background(), entry.ID, model.EntryDone, false, nil, 5)
+	_, err = svc.Update(context.Background(), entry.ID, service.UpdateSprintEntryInput{
+		Status:        model.EntryDone,
+		PointsAtEntry: 5,
+	})
 	if !errors.Is(err, apperr.ErrConflict) {
 		t.Fatalf("Update() on closed sprint = %v, want apperr.ErrConflict", err)
 	}
@@ -101,12 +122,15 @@ func TestSprintEntryService_Update_AllowedWhenSprintOpen(t *testing.T) {
 	}}
 	svc := service.NewSprintEntryService(repo, sprints)
 
-	entry, err := svc.Create(context.Background(), 1, 10, model.EntryNotDone, false, nil, 5)
+	entry, err := createEntry(svc, 1, 10, model.EntryNotDone, nil, 5)
 	if err != nil {
 		t.Fatalf("Create() unexpected error: %v", err)
 	}
 
-	updated, err := svc.Update(context.Background(), entry.ID, model.EntryDone, false, nil, 5)
+	updated, err := svc.Update(context.Background(), entry.ID, service.UpdateSprintEntryInput{
+		Status:        model.EntryDone,
+		PointsAtEntry: 5,
+	})
 	if err != nil {
 		t.Fatalf("Update() on open sprint unexpected error: %v", err)
 	}
@@ -128,7 +152,7 @@ func TestSprintEntryService_Create_ValidatesCarriedFrom(t *testing.T) {
 	t.Run("missing carriedFrom entry", func(t *testing.T) {
 		svc, _ := newSvc()
 		missing := int64(999)
-		_, err := svc.Create(context.Background(), 1, 11, model.EntryDone, false, &missing, 5)
+		_, err := createEntry(svc, 1, 11, model.EntryDone, &missing, 5)
 		if !errors.Is(err, apperr.ErrValidation) {
 			t.Fatalf("Create() = %v, want apperr.ErrValidation", err)
 		}
@@ -136,11 +160,11 @@ func TestSprintEntryService_Create_ValidatesCarriedFrom(t *testing.T) {
 
 	t.Run("different ticket", func(t *testing.T) {
 		svc, _ := newSvc()
-		source, err := svc.Create(context.Background(), 2, 10, model.EntryNotDone, false, nil, 5)
+		source, err := createEntry(svc, 2, 10, model.EntryNotDone, nil, 5)
 		if err != nil {
 			t.Fatalf("setup Create() unexpected error: %v", err)
 		}
-		_, err = svc.Create(context.Background(), 1, 11, model.EntryDone, false, &source.ID, 5)
+		_, err = createEntry(svc, 1, 11, model.EntryDone, &source.ID, 5)
 		if !errors.Is(err, apperr.ErrValidation) {
 			t.Fatalf("Create() = %v, want apperr.ErrValidation", err)
 		}
@@ -148,11 +172,11 @@ func TestSprintEntryService_Create_ValidatesCarriedFrom(t *testing.T) {
 
 	t.Run("source not NotDone", func(t *testing.T) {
 		svc, _ := newSvc()
-		source, err := svc.Create(context.Background(), 1, 10, model.EntryDone, false, nil, 5)
+		source, err := createEntry(svc, 1, 10, model.EntryDone, nil, 5)
 		if err != nil {
 			t.Fatalf("setup Create() unexpected error: %v", err)
 		}
-		_, err = svc.Create(context.Background(), 1, 11, model.EntryDone, false, &source.ID, 5)
+		_, err = createEntry(svc, 1, 11, model.EntryDone, &source.ID, 5)
 		if !errors.Is(err, apperr.ErrValidation) {
 			t.Fatalf("Create() = %v, want apperr.ErrValidation", err)
 		}
@@ -160,11 +184,11 @@ func TestSprintEntryService_Create_ValidatesCarriedFrom(t *testing.T) {
 
 	t.Run("source sprint still open", func(t *testing.T) {
 		svc, _ := newSvc()
-		source, err := svc.Create(context.Background(), 1, 11, model.EntryNotDone, false, nil, 5)
+		source, err := createEntry(svc, 1, 11, model.EntryNotDone, nil, 5)
 		if err != nil {
 			t.Fatalf("setup Create() unexpected error: %v", err)
 		}
-		_, err = svc.Create(context.Background(), 1, 10, model.EntryNotDone, false, &source.ID, 5)
+		_, err = createEntry(svc, 1, 10, model.EntryNotDone, &source.ID, 5)
 		if !errors.Is(err, apperr.ErrValidation) {
 			t.Fatalf("Create() = %v, want apperr.ErrValidation", err)
 		}
@@ -172,11 +196,11 @@ func TestSprintEntryService_Create_ValidatesCarriedFrom(t *testing.T) {
 
 	t.Run("valid carry-over", func(t *testing.T) {
 		svc, _ := newSvc()
-		source, err := svc.Create(context.Background(), 1, 10, model.EntryNotDone, false, nil, 5)
+		source, err := createEntry(svc, 1, 10, model.EntryNotDone, nil, 5)
 		if err != nil {
 			t.Fatalf("setup Create() unexpected error: %v", err)
 		}
-		carried, err := svc.Create(context.Background(), 1, 11, model.EntryDone, false, &source.ID, 5)
+		carried, err := createEntry(svc, 1, 11, model.EntryDone, &source.ID, 5)
 		if err != nil {
 			t.Fatalf("Create() unexpected error: %v", err)
 		}
@@ -184,6 +208,28 @@ func TestSprintEntryService_Create_ValidatesCarriedFrom(t *testing.T) {
 			t.Fatalf("Create() carriedFrom = %v, want %d", carried.CarriedFrom, source.ID)
 		}
 	})
+}
+
+func TestSprintEntryService_Update_RejectsSelfReferencingCarriedFrom(t *testing.T) {
+	repo := newFakeSprintEntryRepo()
+	sprints := &fakeSprintLookup{sprints: map[int64]*model.Sprint{
+		10: {ID: 10, Status: model.SprintOpen},
+	}}
+	svc := service.NewSprintEntryService(repo, sprints)
+
+	entry, err := createEntry(svc, 1, 10, model.EntryNotDone, nil, 5)
+	if err != nil {
+		t.Fatalf("Create() unexpected error: %v", err)
+	}
+
+	_, err = svc.Update(context.Background(), entry.ID, service.UpdateSprintEntryInput{
+		Status:        model.EntryDone,
+		CarriedFrom:   &entry.ID,
+		PointsAtEntry: 5,
+	})
+	if !errors.Is(err, apperr.ErrValidation) {
+		t.Fatalf("Update() with self-referencing carriedFrom = %v, want apperr.ErrValidation", err)
+	}
 }
 
 func TestSprintEntryService_Create_ValidatesFields(t *testing.T) {
@@ -205,7 +251,7 @@ func TestSprintEntryService_Create_ValidatesFields(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := svc.Create(context.Background(), c.ticketID, c.sprintID, c.status, false, nil, c.points)
+			_, err := createEntry(svc, c.ticketID, c.sprintID, c.status, nil, c.points)
 			if !errors.Is(err, apperr.ErrValidation) {
 				t.Fatalf("Create() = %v, want apperr.ErrValidation", err)
 			}

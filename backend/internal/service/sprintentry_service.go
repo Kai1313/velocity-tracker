@@ -79,20 +79,32 @@ func (s *SprintEntryService) validateCarriedFrom(ctx context.Context, ticketID i
 	return nil
 }
 
-func (s *SprintEntryService) Create(ctx context.Context, ticketID, sprintID int64, status model.EntryStatus, addedAfterStart bool, carriedFrom *int64, points int) (*model.SprintEntry, error) {
-	if err := validateEntryFields(ticketID, sprintID, status, points); err != nil {
+// CreateSprintEntryInput mirrors the handler's decoded request body, kept as
+// one struct through the service layer instead of exploded into positional
+// parameters.
+type CreateSprintEntryInput struct {
+	TicketID              int64
+	SprintID              int64
+	Status                model.EntryStatus
+	AddedAfterSprintStart bool
+	CarriedFrom           *int64
+	PointsAtEntry         int
+}
+
+func (s *SprintEntryService) Create(ctx context.Context, in CreateSprintEntryInput) (*model.SprintEntry, error) {
+	if err := validateEntryFields(in.TicketID, in.SprintID, in.Status, in.PointsAtEntry); err != nil {
 		return nil, err
 	}
-	if err := s.validateCarriedFrom(ctx, ticketID, carriedFrom); err != nil {
+	if err := s.validateCarriedFrom(ctx, in.TicketID, in.CarriedFrom); err != nil {
 		return nil, err
 	}
 	e := &model.SprintEntry{
-		TicketID:              ticketID,
-		SprintID:              sprintID,
-		Status:                status,
-		AddedAfterSprintStart: addedAfterStart,
-		CarriedFrom:           carriedFrom,
-		PointsAtEntry:         points,
+		TicketID:              in.TicketID,
+		SprintID:              in.SprintID,
+		Status:                in.Status,
+		AddedAfterSprintStart: in.AddedAfterSprintStart,
+		CarriedFrom:           in.CarriedFrom,
+		PointsAtEntry:         in.PointsAtEntry,
 	}
 	if err := s.repo.Create(ctx, e); err != nil {
 		return nil, err
@@ -108,18 +120,31 @@ func (s *SprintEntryService) List(ctx context.Context, f repository.SprintEntryF
 	return s.repo.List(ctx, f)
 }
 
+// UpdateSprintEntryInput mirrors the handler's decoded request body, kept as
+// one struct through the service layer instead of exploded into positional
+// parameters.
+type UpdateSprintEntryInput struct {
+	Status                model.EntryStatus
+	AddedAfterSprintStart bool
+	CarriedFrom           *int64
+	PointsAtEntry         int
+}
+
 // Update rejects edits once the entry's parent sprint is Closed — a closed
 // sprint's SprintEntry rows are locked history, per CONTEXT.md's "Close
 // Sprint" definition.
-func (s *SprintEntryService) Update(ctx context.Context, id int64, status model.EntryStatus, addedAfterStart bool, carriedFrom *int64, points int) (*model.SprintEntry, error) {
+func (s *SprintEntryService) Update(ctx context.Context, id int64, in UpdateSprintEntryInput) (*model.SprintEntry, error) {
 	existing, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateEntryFields(existing.TicketID, existing.SprintID, status, points); err != nil {
+	if err := validateEntryFields(existing.TicketID, existing.SprintID, in.Status, in.PointsAtEntry); err != nil {
 		return nil, err
 	}
-	if err := s.validateCarriedFrom(ctx, existing.TicketID, carriedFrom); err != nil {
+	if in.CarriedFrom != nil && *in.CarriedFrom == id {
+		return nil, fmt.Errorf("%w: carriedFrom cannot reference the entry itself", apperr.ErrValidation)
+	}
+	if err := s.validateCarriedFrom(ctx, existing.TicketID, in.CarriedFrom); err != nil {
 		return nil, err
 	}
 
@@ -131,10 +156,10 @@ func (s *SprintEntryService) Update(ctx context.Context, id int64, status model.
 		return nil, fmt.Errorf("%w: sprint %d is closed, its sprint entries are locked", apperr.ErrConflict, sprint.ID)
 	}
 
-	existing.Status = status
-	existing.AddedAfterSprintStart = addedAfterStart
-	existing.CarriedFrom = carriedFrom
-	existing.PointsAtEntry = points
+	existing.Status = in.Status
+	existing.AddedAfterSprintStart = in.AddedAfterSprintStart
+	existing.CarriedFrom = in.CarriedFrom
+	existing.PointsAtEntry = in.PointsAtEntry
 	if err := s.repo.Update(ctx, existing); err != nil {
 		return nil, err
 	}

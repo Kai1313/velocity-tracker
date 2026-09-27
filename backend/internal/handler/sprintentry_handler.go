@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"velocity-tracker/backend/internal/apperr"
 	"velocity-tracker/backend/internal/model"
 	"velocity-tracker/backend/internal/repository"
 	"velocity-tracker/backend/internal/service"
@@ -39,7 +41,14 @@ func (h *SprintEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
-	e, err := h.svc.Create(r.Context(), req.TicketID, req.SprintID, req.Status, req.AddedAfterSprintStart, req.CarriedFrom, req.PointsAtEntry)
+	e, err := h.svc.Create(r.Context(), service.CreateSprintEntryInput{
+		TicketID:              req.TicketID,
+		SprintID:              req.SprintID,
+		Status:                req.Status,
+		AddedAfterSprintStart: req.AddedAfterSprintStart,
+		CarriedFrom:           req.CarriedFrom,
+		PointsAtEntry:         req.PointsAtEntry,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -50,8 +59,9 @@ func (h *SprintEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 // parseSprintEntryFilter reads sprintId/projectId/status/carriedOver/search
 // query params. Malformed sprintId/projectId are treated as absent rather
 // than a 400 — an unfiltered result is a safer fallback than rejecting the
-// request over a stray query param.
-func parseSprintEntryFilter(r *http.Request) repository.SprintEntryFilter {
+// request over a stray query param. status is different: it's an enum, so an
+// invalid value is rejected rather than silently matching zero rows.
+func parseSprintEntryFilter(r *http.Request) (repository.SprintEntryFilter, error) {
 	q := r.URL.Query()
 	var f repository.SprintEntryFilter
 	if v := q.Get("sprintId"); v != "" {
@@ -66,7 +76,12 @@ func parseSprintEntryFilter(r *http.Request) repository.SprintEntryFilter {
 	}
 	if v := q.Get("status"); v != "" {
 		status := model.EntryStatus(v)
-		f.Status = &status
+		switch status {
+		case model.EntryDone, model.EntryNotDone, model.EntryCancelled:
+			f.Status = &status
+		default:
+			return f, fmt.Errorf("%w: status must be Done, NotDone, or Cancelled", apperr.ErrValidation)
+		}
 	}
 	if q.Get("carriedOver") == "true" {
 		f.CarriedOverOnly = true
@@ -74,11 +89,16 @@ func parseSprintEntryFilter(r *http.Request) repository.SprintEntryFilter {
 	if v := q.Get("search"); v != "" {
 		f.Search = &v
 	}
-	return f
+	return f, nil
 }
 
 func (h *SprintEntryHandler) List(w http.ResponseWriter, r *http.Request) {
-	entries, err := h.svc.List(r.Context(), parseSprintEntryFilter(r))
+	filter, err := parseSprintEntryFilter(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	entries, err := h.svc.List(r.Context(), filter)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -111,7 +131,12 @@ func (h *SprintEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
-	e, err := h.svc.Update(r.Context(), id, req.Status, req.AddedAfterSprintStart, req.CarriedFrom, req.PointsAtEntry)
+	e, err := h.svc.Update(r.Context(), id, service.UpdateSprintEntryInput{
+		Status:                req.Status,
+		AddedAfterSprintStart: req.AddedAfterSprintStart,
+		CarriedFrom:           req.CarriedFrom,
+		PointsAtEntry:         req.PointsAtEntry,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
