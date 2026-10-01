@@ -168,3 +168,47 @@ func (r *DashboardRepository) SprintPoints(ctx context.Context) ([]model.SprintP
 	}
 	return points, wrapReadErr(rows.Err())
 }
+
+// ClosedSprintPoints returns committed/done/late-add point totals for the
+// most recently closed `limit` sprints, oldest first. Unlike SprintPoints
+// (Open sprints, Active projects only), every project is counted regardless
+// of its current status — see SprintRetrospective's doc comment for why.
+func (r *DashboardRepository) ClosedSprintPoints(ctx context.Context, limit int) ([]model.SprintPoints, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT * FROM (
+			SELECT
+				s.id,
+				s.name,
+				s.start_date,
+				s.end_date,
+				COALESCE(SUM(CASE WHEN NOT se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS committed_points,
+				COALESCE(SUM(CASE WHEN NOT se.added_after_sprint_start AND se.status = 'Done' THEN se.points_at_entry ELSE 0 END), 0)::int AS committed_done_points,
+				COALESCE(SUM(CASE WHEN se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS late_add_points
+			FROM sprint_entry se
+			JOIN ticket t ON t.id = se.ticket_id
+			JOIN sprint s ON s.id = se.sprint_id
+			WHERE s.status = 'Closed' AND se.status <> 'Cancelled'
+			GROUP BY s.id, s.name, s.start_date, s.end_date
+			ORDER BY s.id DESC
+			LIMIT $1
+		) recent
+		ORDER BY id ASC
+	`, limit)
+	if err != nil {
+		return nil, wrapReadErr(err)
+	}
+	defer rows.Close()
+
+	points := []model.SprintPoints{}
+	for rows.Next() {
+		var p model.SprintPoints
+		if err := rows.Scan(
+			&p.SprintID, &p.SprintName, &p.SprintStartDate, &p.SprintEndDate,
+			&p.CommittedPoints, &p.CommittedDonePoints, &p.LateAddPoints,
+		); err != nil {
+			return nil, wrapReadErr(err)
+		}
+		points = append(points, p)
+	}
+	return points, wrapReadErr(rows.Err())
+}

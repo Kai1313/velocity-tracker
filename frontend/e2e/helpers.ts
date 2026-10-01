@@ -60,13 +60,13 @@ export const api = {
     ticketId: number,
     sprintId: number,
     pointsAtEntry: number,
-    opts?: { status?: 'Done' | 'NotDone' | 'Cancelled'; carriedFrom?: number | null },
+    opts?: { status?: 'Done' | 'NotDone' | 'Cancelled'; carriedFrom?: number | null; addedAfterSprintStart?: boolean },
   ) =>
     request<ApiSprintEntry>('POST', '/sprint-entries', {
       ticketId,
       sprintId,
       status: opts?.status ?? 'NotDone',
-      addedAfterSprintStart: false,
+      addedAfterSprintStart: opts?.addedAfterSprintStart ?? false,
       carriedFrom: opts?.carriedFrom ?? null,
       pointsAtEntry,
     }),

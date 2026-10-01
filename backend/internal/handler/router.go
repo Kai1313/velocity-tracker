@@ -52,6 +52,7 @@ func NewRouter(h Handlers) http.Handler {
 	mux.HandleFunc("GET /dashboard/sprints/{id}", h.Dashboard.SprintDeveloperBreakdown)
 	mux.HandleFunc("GET /dashboard/sprints/{id}/entries", h.Dashboard.SprintTicketBreakdown)
 	mux.HandleFunc("GET /dashboard/sprint-health", h.Dashboard.SprintHealth)
+	mux.HandleFunc("GET /dashboard/retrospective", h.Dashboard.SprintRetrospective)
 
 	return withCORS(mux)
 }

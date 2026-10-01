@@ -12,6 +12,7 @@ type DashboardRepository interface {
 	DeveloperBreakdown(ctx context.Context, sprintID int64) ([]model.DeveloperSummary, error)
 	TicketEntries(ctx context.Context, sprintID int64) ([]model.SprintEntryDetail, error)
 	SprintPoints(ctx context.Context) ([]model.SprintPoints, error)
+	ClosedSprintPoints(ctx context.Context, limit int) ([]model.SprintPoints, error)
 }
 
 type DashboardService struct {
@@ -122,6 +123,41 @@ func ComputeSprintHealth(p model.SprintPoints, now time.Time) model.SprintHealth
 	}
 	h.Status = sprintHealthStatus(h)
 	return h
+}
+
+// SprintRetrospective returns commitment-reliability metrics for the most
+// recently closed `limit` sprints, oldest first.
+func (s *DashboardService) SprintRetrospective(ctx context.Context, limit int) ([]model.SprintRetrospective, error) {
+	points, err := s.repo.ClosedSprintPoints(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	retro := make([]model.SprintRetrospective, len(points))
+	for i, p := range points {
+		retro[i] = ComputeSprintRetrospective(p)
+	}
+	return retro, nil
+}
+
+// ComputeSprintRetrospective is the pure ratio calculation behind
+// SprintRetrospective, exported so it can be unit-tested directly.
+func ComputeSprintRetrospective(p model.SprintPoints) model.SprintRetrospective {
+	r := model.SprintRetrospective{
+		SprintID:            p.SprintID,
+		SprintName:          p.SprintName,
+		SprintStartDate:     p.SprintStartDate,
+		SprintEndDate:       p.SprintEndDate,
+		CommittedPoints:     p.CommittedPoints,
+		CommittedDonePoints: p.CommittedDonePoints,
+		LateAddPoints:       p.LateAddPoints,
+	}
+	if p.CommittedPoints > 0 {
+		accuracy := float64(p.CommittedDonePoints) / float64(p.CommittedPoints) * 100
+		r.PlanningAccuracy = &accuracy
+		lateAddRate := float64(p.LateAddPoints) / float64(p.CommittedPoints) * 100
+		r.LateAddRate = &lateAddRate
+	}
+	return r
 }
 
 func sprintHealthStatus(h model.SprintHealth) model.SprintHealthStatus {

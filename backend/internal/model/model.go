@@ -148,6 +148,26 @@ type SprintPoints struct {
 	LateAddPoints       int       `json:"lateAddPoints"`
 }
 
+// SprintRetrospective is one closed sprint's commitment-reliability
+// metrics: Planning Accuracy and Late-Add Rate, per CONTEXT.md's
+// definitions. Unlike SprintPoints/SprintHealth (Open sprints, Active
+// projects only), this is computed across every project regardless of its
+// current status — a retrospective on a past sprint should reflect what was
+// actually committed and done at the time, not be reshaped by a project
+// being archived afterward. Both ratios are nil when the sprint had no
+// committed points, rather than a nonsensical 0% or a divide-by-zero.
+type SprintRetrospective struct {
+	SprintID            int64     `json:"sprintId"`
+	SprintName          string    `json:"sprintName"`
+	SprintStartDate     time.Time `json:"sprintStartDate"`
+	SprintEndDate       time.Time `json:"sprintEndDate"`
+	CommittedPoints     int       `json:"committedPoints"`
+	CommittedDonePoints int       `json:"committedDonePoints"`
+	LateAddPoints       int       `json:"lateAddPoints"`
+	PlanningAccuracy    *float64  `json:"planningAccuracy"`
+	LateAddRate         *float64  `json:"lateAddRate"`
+}
+
 // SprintHealthStatus is the early-warning signal for one SprintHealth
 // row, comparing the velocity still required to finish committed work
 // against the velocity actually being achieved.

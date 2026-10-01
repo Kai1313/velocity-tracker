@@ -24,11 +24,16 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Sprint Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Workload and completed story points, per sprint. Click a sprint for its per-developer breakdown.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Sprint Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Workload and completed story points, per sprint. Click a sprint for its per-developer breakdown.
+          </p>
+        </div>
+        <Link href="/dashboard/retrospective" className="shrink-0 text-sm text-muted-foreground hover:underline">
+          Retrospective &rarr;
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -457,3 +457,98 @@ func TestDashboardRepository_SprintPoints_ProducesOneRowPerOpenSprint(t *testing
 		t.Errorf("sprint9 row CommittedPoints = %d, want 7", bySprint[sprint9.ID].CommittedPoints)
 	}
 }
+
+func TestDashboardRepository_ClosedSprintPoints_IncludesArchivedProjectsExcludesOpenSprints(t *testing.T) {
+	tx := withTx(t)
+	ctx := context.Background()
+
+	projectRepo := repository.NewProjectRepository(tx)
+	sprintRepo := repository.NewSprintRepository(tx)
+	entryRepo := repository.NewSprintEntryRepository(tx)
+
+	// A project archived after its sprint closed must still count — a
+	// retrospective reflects what was committed at the time, not reshaped by
+	// a later archiving decision (unlike SprintPoints/Sprint Health).
+	archivedProject := mustCreateProject(t, tx, "Later Archived")
+	archivedTicket := mustCreateTicket(t, tx, archivedProject.ID)
+	closedSprint := &model.Sprint{Name: "Closed Sprint", StartDate: fixedDate(2026, 8, 1), EndDate: fixedDate(2026, 8, 14), Status: model.SprintClosed}
+	if err := sprintRepo.Create(ctx, closedSprint); err != nil {
+		t.Fatalf("create closed sprint: %v", err)
+	}
+	if err := entryRepo.Create(ctx, &model.SprintEntry{TicketID: archivedTicket.ID, SprintID: closedSprint.ID, Status: model.EntryDone, PointsAtEntry: 5}); err != nil {
+		t.Fatalf("create closed-sprint entry: %v", err)
+	}
+	archivedProject.Status = model.ProjectArchived
+	if err := projectRepo.Update(ctx, archivedProject); err != nil {
+		t.Fatalf("archive project: %v", err)
+	}
+
+	openProject := mustCreateProject(t, tx, "Active Project")
+	openTicket := mustCreateTicket(t, tx, openProject.ID)
+	openSprint := &model.Sprint{Name: "Open Sprint", StartDate: fixedDate(2026, 9, 1), EndDate: fixedDate(2026, 9, 14), Status: model.SprintOpen}
+	if err := sprintRepo.Create(ctx, openSprint); err != nil {
+		t.Fatalf("create open sprint: %v", err)
+	}
+	if err := entryRepo.Create(ctx, &model.SprintEntry{TicketID: openTicket.ID, SprintID: openSprint.ID, Status: model.EntryNotDone, PointsAtEntry: 3}); err != nil {
+		t.Fatalf("create open-sprint entry: %v", err)
+	}
+
+	points, err := repository.NewDashboardRepository(tx).ClosedSprintPoints(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClosedSprintPoints() unexpected error: %v", err)
+	}
+
+	bySprint := map[int64]model.SprintPoints{}
+	for _, p := range points {
+		bySprint[p.SprintID] = p
+	}
+	closed, ok := bySprint[closedSprint.ID]
+	if !ok {
+		t.Fatalf("ClosedSprintPoints() missing closed sprint %d in result", closedSprint.ID)
+	}
+	if closed.CommittedPoints != 5 {
+		t.Errorf("closed sprint CommittedPoints = %d, want 5 (archived project's points still counted)", closed.CommittedPoints)
+	}
+	if _, ok := bySprint[openSprint.ID]; ok {
+		t.Errorf("ClosedSprintPoints() unexpectedly includes open sprint %d", openSprint.ID)
+	}
+}
+
+func TestDashboardRepository_ClosedSprintPoints_OrdersOldestFirstAndRespectsLimit(t *testing.T) {
+	tx := withTx(t)
+	ctx := context.Background()
+
+	project := mustCreateProject(t, tx, "Core Platform")
+	sprintRepo := repository.NewSprintRepository(tx)
+	entryRepo := repository.NewSprintEntryRepository(tx)
+
+	var sprints []*model.Sprint
+	for i, name := range []string{"Sprint A", "Sprint B", "Sprint C"} {
+		s := &model.Sprint{
+			Name:      name,
+			StartDate: fixedDate(2026, 8, 1+i*14),
+			EndDate:   fixedDate(2026, 8, 13+i*14),
+			Status:    model.SprintClosed,
+		}
+		if err := sprintRepo.Create(ctx, s); err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+		ticket := mustCreateTicket(t, tx, project.ID)
+		if err := entryRepo.Create(ctx, &model.SprintEntry{TicketID: ticket.ID, SprintID: s.ID, Status: model.EntryDone, PointsAtEntry: 1}); err != nil {
+			t.Fatalf("create entry for %s: %v", name, err)
+		}
+		sprints = append(sprints, s)
+	}
+
+	points, err := repository.NewDashboardRepository(tx).ClosedSprintPoints(ctx, 2)
+	if err != nil {
+		t.Fatalf("ClosedSprintPoints() unexpected error: %v", err)
+	}
+	if len(points) != 2 {
+		t.Fatalf("ClosedSprintPoints(limit=2) = %d rows, want 2", len(points))
+	}
+	// The 2 most recently closed sprints (B, C), oldest first.
+	if points[0].SprintName != "Sprint B" || points[1].SprintName != "Sprint C" {
+		t.Errorf("ClosedSprintPoints(limit=2) order = [%s, %s], want [Sprint B, Sprint C]", points[0].SprintName, points[1].SprintName)
+	}
+}

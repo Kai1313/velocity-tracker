@@ -95,6 +95,18 @@ export type SprintHealth = {
   status: SprintHealthStatus;
 };
 
+export type SprintRetrospective = {
+  sprintId: number;
+  sprintName: string;
+  sprintStartDate: string;
+  sprintEndDate: string;
+  committedPoints: number;
+  committedDonePoints: number;
+  lateAddPoints: number;
+  planningAccuracy: number | null;
+  lateAddRate: number | null;
+};
+
 function backendUrl() {
   return process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:8080';
 }
@@ -151,6 +163,10 @@ export function getSprintTicketBreakdown(sprintId: number) {
 
 export function getSprintHealth() {
   return getJSON<SprintHealth[]>('/dashboard/sprint-health');
+}
+
+export function getSprintRetrospective(limit?: number) {
+  return getJSON<SprintRetrospective[]>(`/dashboard/retrospective${limit ? `?limit=${limit}` : ''}`);
 }
 
 export function getSprint(sprintId: number) {

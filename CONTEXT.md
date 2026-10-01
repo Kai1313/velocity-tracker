@@ -47,10 +47,10 @@ Story points completed in a sprint, counted only from tickets added after the sp
 The total story points of tickets added after sprint start. This is a *derived* value — summed from each ticket's "added after sprint start" flag — never entered manually at the sprint level. A manually-typed aggregate with no link back to individual tickets would drift out of sync with reality.
 
 **Planning Accuracy**:
-`Committed Completed Points ÷ Committed Points at Sprint Start × 100`. How much of what the team committed to at sprint start actually got done — excludes Late-Add Completed Points, since late-adds weren't part of the original commitment. Not yet computed anywhere in the app (see [README.md](README.md#api)); this is the intended formula for when it is.
+`Committed Completed Points ÷ Committed Points at Sprint Start × 100`. How much of what the team committed to at sprint start actually got done — excludes Late-Add Completed Points, since late-adds weren't part of the original commitment. Computed for the last N closed sprints by the Sprint Retrospective Report (`GET /dashboard/retrospective`), across every project regardless of its current status — see [ADR-0012](docs/adr/0012-sprint-retrospective-report.md).
 
 **Late-Add Rate**:
-`Added Mid-Sprint Points ÷ Committed Points at Sprint Start × 100`. How much work got added to a sprint after it started, relative to what was originally committed. Not yet computed anywhere in the app (see [README.md](README.md#api)); this is the intended formula for when it is.
+`Added Mid-Sprint Points ÷ Committed Points at Sprint Start × 100`. How much work got added to a sprint after it started, relative to what was originally committed. Computed alongside Planning Accuracy by the same Sprint Retrospective Report — see [ADR-0012](docs/adr/0012-sprint-retrospective-report.md).
 
 **Cancelled** (ticket status):
 A third ticket status alongside Done / Not Done. A ticket that's removed from scope mid-sprint and will never be finished. Excluded from all metrics (velocity, planning accuracy, carry-over) — without this status, an abandoned ticket would count against planning accuracy indefinitely and keep triggering carry-over logic forever. Applies only to the `SprintEntry` it's set on — does not retroactively exclude that ticket's earlier `Not Done` entries from past sprints. See [ADR-0001](docs/adr/0001-ticket-sprintentry-split.md#consequences).

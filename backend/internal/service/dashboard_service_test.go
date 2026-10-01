@@ -12,8 +12,9 @@ import (
 )
 
 type fakeDashboardRepo struct {
-	breakdown map[int64][]model.DeveloperSummary
-	entries   map[int64][]model.SprintEntryDetail
+	breakdown    map[int64][]model.DeveloperSummary
+	entries      map[int64][]model.SprintEntryDetail
+	closedPoints []model.SprintPoints
 }
 
 func (f *fakeDashboardRepo) SprintSummaries(ctx context.Context) ([]model.SprintSummary, error) {
@@ -30,6 +31,10 @@ func (f *fakeDashboardRepo) TicketEntries(ctx context.Context, sprintID int64) (
 
 func (f *fakeDashboardRepo) SprintPoints(ctx context.Context) ([]model.SprintPoints, error) {
 	return nil, nil
+}
+
+func (f *fakeDashboardRepo) ClosedSprintPoints(ctx context.Context, limit int) ([]model.SprintPoints, error) {
+	return f.closedPoints, nil
 }
 
 func TestDashboardService_SprintDeveloperBreakdown_404sOnMissingSprint(t *testing.T) {
@@ -212,5 +217,71 @@ func TestComputeSprintHealth(t *testing.T) {
 				t.Errorf("LateAddPoints = %d, want %d (passthrough)", got.LateAddPoints, p.LateAddPoints)
 			}
 		})
+	}
+}
+
+func TestComputeSprintRetrospective(t *testing.T) {
+	tests := []struct {
+		name          string
+		committed     int
+		done          int
+		lateAdd       int
+		wantNilRatios bool
+		wantAccuracy  float64
+		wantLateAdd   float64
+	}{
+		{
+			name:          "zero committed points yields nil ratios, not a divide-by-zero",
+			wantNilRatios: true,
+		},
+		{
+			name:      "under-delivered sprint with late adds",
+			committed: 20, done: 15, lateAdd: 5,
+			wantAccuracy: 75, wantLateAdd: 25,
+		},
+		{
+			name:      "fully accurate sprint with no late adds",
+			committed: 10, done: 10, lateAdd: 0,
+			wantAccuracy: 100, wantLateAdd: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := model.SprintPoints{
+				SprintID: 1, SprintName: "Sprint 1",
+				CommittedPoints: tt.committed, CommittedDonePoints: tt.done, LateAddPoints: tt.lateAdd,
+			}
+			got := service.ComputeSprintRetrospective(p)
+
+			if tt.wantNilRatios {
+				if got.PlanningAccuracy != nil || got.LateAddRate != nil {
+					t.Fatalf("ratios = (%v, %v), want (nil, nil)", got.PlanningAccuracy, got.LateAddRate)
+				}
+				return
+			}
+			if got.PlanningAccuracy == nil || *got.PlanningAccuracy != tt.wantAccuracy {
+				t.Errorf("PlanningAccuracy = %v, want %v", got.PlanningAccuracy, tt.wantAccuracy)
+			}
+			if got.LateAddRate == nil || *got.LateAddRate != tt.wantLateAdd {
+				t.Errorf("LateAddRate = %v, want %v", got.LateAddRate, tt.wantLateAdd)
+			}
+		})
+	}
+}
+
+func TestDashboardService_SprintRetrospective_OldestFirstFromRepo(t *testing.T) {
+	repo := &fakeDashboardRepo{closedPoints: []model.SprintPoints{
+		{SprintID: 1, SprintName: "Sprint 1", CommittedPoints: 10, CommittedDonePoints: 10},
+		{SprintID: 2, SprintName: "Sprint 2", CommittedPoints: 10, CommittedDonePoints: 5},
+	}}
+	svc := service.NewDashboardService(repo, &fakeSprintLookup{sprints: map[int64]*model.Sprint{}})
+
+	got, err := svc.SprintRetrospective(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("SprintRetrospective() unexpected error: %v", err)
+	}
+	if len(got) != 2 || got[0].SprintName != "Sprint 1" || got[1].SprintName != "Sprint 2" {
+		t.Fatalf("SprintRetrospective() = %+v, want repo order preserved", got)
 	}
 }
