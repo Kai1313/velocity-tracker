@@ -122,6 +122,14 @@ export default async function DashboardPage() {
               ))}
             </TableBody>
           </Table>
+          <p className="px-6 py-4 text-xs text-muted-foreground">
+            Progress = Done ÷ Workload, counting every ticket in the sprint including late adds. It is not Planning
+            Accuracy, which only measures the original commitment — see the{' '}
+            <Link href="/dashboard/retrospective" className="underline">
+              Retrospective
+            </Link>
+            .
+          </p>
         </CardContent>
       </Card>
     </main>
