@@ -141,7 +141,10 @@ func (r *DashboardRepository) SprintPoints(ctx context.Context) ([]model.SprintP
 			s.end_date,
 			COALESCE(SUM(CASE WHEN NOT se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS committed_points,
 			COALESCE(SUM(CASE WHEN NOT se.added_after_sprint_start AND se.status = 'Done' THEN se.points_at_entry ELSE 0 END), 0)::int AS committed_done_points,
-			COALESCE(SUM(CASE WHEN se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS late_add_points
+			COALESCE(SUM(CASE WHEN se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS late_add_points,
+			COUNT(CASE WHEN NOT se.added_after_sprint_start THEN 1 END)::int AS committed_tickets,
+			COUNT(CASE WHEN NOT se.added_after_sprint_start AND se.status = 'Done' THEN 1 END)::int AS committed_done_tickets,
+			COUNT(CASE WHEN se.added_after_sprint_start THEN 1 END)::int AS late_add_tickets
 		FROM sprint_entry se
 		JOIN ticket t ON t.id = se.ticket_id
 		JOIN project p ON p.id = t.project_id
@@ -161,6 +164,7 @@ func (r *DashboardRepository) SprintPoints(ctx context.Context) ([]model.SprintP
 		if err := rows.Scan(
 			&p.SprintID, &p.SprintName, &p.SprintStartDate, &p.SprintEndDate,
 			&p.CommittedPoints, &p.CommittedDonePoints, &p.LateAddPoints,
+			&p.CommittedTickets, &p.CommittedDoneTickets, &p.LateAddTickets,
 		); err != nil {
 			return nil, wrapReadErr(err)
 		}
@@ -183,7 +187,10 @@ func (r *DashboardRepository) ClosedSprintPoints(ctx context.Context, limit int)
 				s.end_date,
 				COALESCE(SUM(CASE WHEN NOT se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS committed_points,
 				COALESCE(SUM(CASE WHEN NOT se.added_after_sprint_start AND se.status = 'Done' THEN se.points_at_entry ELSE 0 END), 0)::int AS committed_done_points,
-				COALESCE(SUM(CASE WHEN se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS late_add_points
+				COALESCE(SUM(CASE WHEN se.added_after_sprint_start THEN se.points_at_entry ELSE 0 END), 0)::int AS late_add_points,
+				COUNT(CASE WHEN NOT se.added_after_sprint_start THEN 1 END)::int AS committed_tickets,
+				COUNT(CASE WHEN NOT se.added_after_sprint_start AND se.status = 'Done' THEN 1 END)::int AS committed_done_tickets,
+				COUNT(CASE WHEN se.added_after_sprint_start THEN 1 END)::int AS late_add_tickets
 			FROM sprint_entry se
 			JOIN ticket t ON t.id = se.ticket_id
 			JOIN sprint s ON s.id = se.sprint_id
@@ -205,6 +212,7 @@ func (r *DashboardRepository) ClosedSprintPoints(ctx context.Context, limit int)
 		if err := rows.Scan(
 			&p.SprintID, &p.SprintName, &p.SprintStartDate, &p.SprintEndDate,
 			&p.CommittedPoints, &p.CommittedDonePoints, &p.LateAddPoints,
+			&p.CommittedTickets, &p.CommittedDoneTickets, &p.LateAddTickets,
 		); err != nil {
 			return nil, wrapReadErr(err)
 		}

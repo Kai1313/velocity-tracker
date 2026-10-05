@@ -150,6 +150,10 @@ func ComputeSprintRetrospective(p model.SprintPoints) model.SprintRetrospective 
 		CommittedPoints:     p.CommittedPoints,
 		CommittedDonePoints: p.CommittedDonePoints,
 		LateAddPoints:       p.LateAddPoints,
+
+		CommittedTickets:     p.CommittedTickets,
+		CommittedDoneTickets: p.CommittedDoneTickets,
+		LateAddTickets:       p.LateAddTickets,
 	}
 	if p.CommittedPoints > 0 {
 		accuracy := float64(p.CommittedDonePoints) / float64(p.CommittedPoints) * 100

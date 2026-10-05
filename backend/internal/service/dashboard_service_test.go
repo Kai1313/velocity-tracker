@@ -220,6 +220,17 @@ func TestComputeSprintHealth(t *testing.T) {
 	}
 }
 
+func TestComputeSprintRetrospective_PassesTicketCountsThrough(t *testing.T) {
+	got := service.ComputeSprintRetrospective(model.SprintPoints{
+		CommittedPoints: 10, CommittedTickets: 4, CommittedDoneTickets: 3, LateAddTickets: 2,
+	})
+
+	if got.CommittedTickets != 4 || got.CommittedDoneTickets != 3 || got.LateAddTickets != 2 {
+		t.Errorf("tickets (committed, committed-done, late-add) = (%d, %d, %d), want (4, 3, 2)",
+			got.CommittedTickets, got.CommittedDoneTickets, got.LateAddTickets)
+	}
+}
+
 func TestComputeSprintRetrospective(t *testing.T) {
 	tests := []struct {
 		name          string

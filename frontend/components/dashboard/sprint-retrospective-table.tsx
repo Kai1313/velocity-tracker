@@ -6,6 +6,12 @@ function formatPercent(value: number | null) {
   return `${value.toFixed(0)}%`;
 }
 
+// Lighter than the cell's own muted text (/70) so the count stays secondary
+// even in the Late-Add column, where the SP number is already muted.
+function TicketCount({ count }: { count: number }) {
+  return <span className="text-muted-foreground/70"> ({count} {count === 1 ? 'ticket' : 'tickets'})</span>;
+}
+
 export function SprintRetrospectiveTable({ rows }: { rows: SprintRetrospective[] }) {
   return (
     <div>
@@ -31,10 +37,23 @@ export function SprintRetrospectiveTable({ rows }: { rows: SprintRetrospective[]
           {rows.map((r) => (
             <TableRow key={r.sprintId}>
               <TableCell className="font-medium">{r.sprintName}</TableCell>
-              <TableCell>{r.committedPoints}</TableCell>
-              <TableCell>{r.committedDonePoints}</TableCell>
+              <TableCell>
+                {r.committedPoints}
+                <TicketCount count={r.committedTickets} />
+              </TableCell>
+              <TableCell>
+                {r.committedDonePoints}
+                <TicketCount count={r.committedDoneTickets} />
+              </TableCell>
               <TableCell className="text-muted-foreground">
-                {r.lateAddPoints > 0 ? `+${r.lateAddPoints}` : '—'}
+                {r.lateAddTickets > 0 ? (
+                  <>
+                    +{r.lateAddPoints}
+                    <TicketCount count={r.lateAddTickets} />
+                  </>
+                ) : (
+                  '—'
+                )}
               </TableCell>
               <TableCell>{formatPercent(r.planningAccuracy)}</TableCell>
               <TableCell>{formatPercent(r.lateAddRate)}</TableCell>

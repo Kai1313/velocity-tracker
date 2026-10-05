@@ -146,6 +146,10 @@ type SprintPoints struct {
 	CommittedPoints     int       `json:"committedPoints"`
 	CommittedDonePoints int       `json:"committedDonePoints"`
 	LateAddPoints       int       `json:"lateAddPoints"`
+	// Ticket counts cover the same sprint entries as the point totals above.
+	CommittedTickets     int `json:"committedTickets"`
+	CommittedDoneTickets int `json:"committedDoneTickets"`
+	LateAddTickets       int `json:"lateAddTickets"`
 }
 
 // SprintRetrospective is one closed sprint's commitment-reliability
@@ -164,8 +168,12 @@ type SprintRetrospective struct {
 	CommittedPoints     int       `json:"committedPoints"`
 	CommittedDonePoints int       `json:"committedDonePoints"`
 	LateAddPoints       int       `json:"lateAddPoints"`
-	PlanningAccuracy    *float64  `json:"planningAccuracy"`
-	LateAddRate         *float64  `json:"lateAddRate"`
+	// Ticket counts cover the same sprint entries as the point totals above.
+	CommittedTickets     int      `json:"committedTickets"`
+	CommittedDoneTickets int      `json:"committedDoneTickets"`
+	LateAddTickets       int      `json:"lateAddTickets"`
+	PlanningAccuracy     *float64 `json:"planningAccuracy"`
+	LateAddRate          *float64 `json:"lateAddRate"`
 }
 
 // SprintHealthStatus is the early-warning signal for one SprintHealth

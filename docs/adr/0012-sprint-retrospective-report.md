@@ -16,6 +16,8 @@ Three deliberate differences from Sprint Health's `SprintPoints` query:
 - **Every project counted, regardless of its current status.** Sprint Health's `SprintPoints` filters to `Active` projects because it's a live pace signal. A retrospective is historical: if a project is archived after a sprint closes, that sprint's recorded commitment and completion shouldn't silently shrink because of an unrelated later decision. `ClosedSprintPoints` has no project-status filter at all.
 - **Sprint-level only, not broken out per project** — same reasoning as ADR-0011: this is one team with shared capacity across projects, so a per-project split would fragment a number meant to answer a team-wide question.
 
+The table also shows a ticket count beside each SP figure (`152 (24 tickets)`), counted over the same non-Cancelled sprint entries as the points, so carried-over entries count in both. The ratios stay SP-based.
+
 "Most recently closed" is approximated by sprint ID order (creation sequence), the same convention every other dashboard query in this codebase already uses — there's no `closed_at` timestamp on `Sprint` to order by directly (closing is a status flip, see [ADR-0009](0009-sprint-reopening-is-an-escape-hatch.md)).
 
 ## Consequences

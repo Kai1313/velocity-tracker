@@ -103,6 +103,9 @@ export type SprintRetrospective = {
   committedPoints: number;
   committedDonePoints: number;
   lateAddPoints: number;
+  committedTickets: number;
+  committedDoneTickets: number;
+  lateAddTickets: number;
   planningAccuracy: number | null;
   lateAddRate: number | null;
 };

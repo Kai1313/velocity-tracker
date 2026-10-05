@@ -305,6 +305,10 @@ func TestDashboardRepository_SprintPoints_SplitsCommittedFromLateAdd(t *testing.
 	if got.LateAddPoints != 4 {
 		t.Errorf("LateAddPoints = %d, want 4", got.LateAddPoints)
 	}
+	if got.CommittedTickets != 1 || got.CommittedDoneTickets != 1 || got.LateAddTickets != 1 {
+		t.Errorf("tickets (committed, committed-done, late-add) = (%d, %d, %d), want (1, 1, 1) (cancelled entry excluded)",
+			got.CommittedTickets, got.CommittedDoneTickets, got.LateAddTickets)
+	}
 }
 
 func TestDashboardRepository_SprintPoints_AggregatesAcrossProjectsInSameSprint(t *testing.T) {
@@ -511,6 +515,57 @@ func TestDashboardRepository_ClosedSprintPoints_IncludesArchivedProjectsExcludes
 	}
 	if _, ok := bySprint[openSprint.ID]; ok {
 		t.Errorf("ClosedSprintPoints() unexpectedly includes open sprint %d", openSprint.ID)
+	}
+}
+
+func TestDashboardRepository_ClosedSprintPoints_CountsTicketsOnSameEntriesAsPoints(t *testing.T) {
+	tx := withTx(t)
+	ctx := context.Background()
+
+	project := mustCreateProject(t, tx, "Core Platform")
+	sprintRepo := repository.NewSprintRepository(tx)
+	entryRepo := repository.NewSprintEntryRepository(tx)
+
+	sprint := &model.Sprint{Name: "Closed Sprint", StartDate: fixedDate(2026, 8, 1), EndDate: fixedDate(2026, 8, 14), Status: model.SprintClosed}
+	if err := sprintRepo.Create(ctx, sprint); err != nil {
+		t.Fatalf("create sprint: %v", err)
+	}
+
+	entries := []*model.SprintEntry{
+		{TicketID: mustCreateTicket(t, tx, project.ID).ID, SprintID: sprint.ID, Status: model.EntryDone, PointsAtEntry: 5},
+		{TicketID: mustCreateTicket(t, tx, project.ID).ID, SprintID: sprint.ID, Status: model.EntryDone, PointsAtEntry: 3},
+		{TicketID: mustCreateTicket(t, tx, project.ID).ID, SprintID: sprint.ID, Status: model.EntryNotDone, PointsAtEntry: 2},
+		{TicketID: mustCreateTicket(t, tx, project.ID).ID, SprintID: sprint.ID, Status: model.EntryDone, AddedAfterSprintStart: true, PointsAtEntry: 4},
+		{TicketID: mustCreateTicket(t, tx, project.ID).ID, SprintID: sprint.ID, Status: model.EntryCancelled, PointsAtEntry: 8},
+	}
+	for _, e := range entries {
+		if err := entryRepo.Create(ctx, e); err != nil {
+			t.Fatalf("create sprint entry: %v", err)
+		}
+	}
+
+	points, err := repository.NewDashboardRepository(tx).ClosedSprintPoints(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClosedSprintPoints() unexpected error: %v", err)
+	}
+
+	var got *model.SprintPoints
+	for i := range points {
+		if points[i].SprintID == sprint.ID {
+			got = &points[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("ClosedSprintPoints() missing sprint %d in result", sprint.ID)
+	}
+	if got.CommittedTickets != 3 {
+		t.Errorf("CommittedTickets = %d, want 3 (late-add and cancelled excluded)", got.CommittedTickets)
+	}
+	if got.CommittedDoneTickets != 2 {
+		t.Errorf("CommittedDoneTickets = %d, want 2", got.CommittedDoneTickets)
+	}
+	if got.LateAddTickets != 1 {
+		t.Errorf("LateAddTickets = %d, want 1", got.LateAddTickets)
 	}
 }
 
