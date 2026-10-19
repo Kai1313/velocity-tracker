@@ -114,6 +114,21 @@ func (h *SprintEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type setBounceCountRequest struct {
+	BounceCount *int `json:"bounceCount"`
+}
+
+// SetBounceCount sets an entry's bounce count to an absolute value. The field
+// is required (a pointer, so "missing" is distinguishable from 0).
+func (h *SprintEntryHandler) SetBounceCount(w http.ResponseWriter, r *http.Request) {
+	handleUpdate(w, r, func(ctx context.Context, id int64, req setBounceCountRequest) (*model.SprintEntry, error) {
+		if req.BounceCount == nil {
+			return nil, fmt.Errorf("%w: bounceCount is required", apperr.ErrValidation)
+		}
+		return h.svc.SetBounceCount(ctx, id, *req.BounceCount)
+	})
+}
+
 func (h *SprintEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	handleDelete(w, r, h.svc.Delete)
 }

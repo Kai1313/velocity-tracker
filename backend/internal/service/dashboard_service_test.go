@@ -15,6 +15,9 @@ type fakeDashboardRepo struct {
 	breakdown    map[int64][]model.DeveloperSummary
 	entries      map[int64][]model.SprintEntryDetail
 	closedPoints []model.SprintPoints
+	stuck        []model.StuckTicket
+	stuckMin     int // the minBounces StuckTickets was last called with
+	bounceBySize []model.BounceBySize
 }
 
 func (f *fakeDashboardRepo) SprintSummaries(ctx context.Context) ([]model.SprintSummary, error) {
@@ -35,6 +38,15 @@ func (f *fakeDashboardRepo) SprintPoints(ctx context.Context) ([]model.SprintPoi
 
 func (f *fakeDashboardRepo) ClosedSprintPoints(ctx context.Context, limit int) ([]model.SprintPoints, error) {
 	return f.closedPoints, nil
+}
+
+func (f *fakeDashboardRepo) StuckTickets(ctx context.Context, minBounces int) ([]model.StuckTicket, error) {
+	f.stuckMin = minBounces
+	return f.stuck, nil
+}
+
+func (f *fakeDashboardRepo) BounceBySize(ctx context.Context) ([]model.BounceBySize, error) {
+	return f.bounceBySize, nil
 }
 
 func TestDashboardService_SprintDeveloperBreakdown_404sOnMissingSprint(t *testing.T) {
@@ -294,5 +306,33 @@ func TestDashboardService_SprintRetrospective_OldestFirstFromRepo(t *testing.T) 
 	}
 	if len(got) != 2 || got[0].SprintName != "Sprint 1" || got[1].SprintName != "Sprint 2" {
 		t.Fatalf("SprintRetrospective() = %+v, want repo order preserved", got)
+	}
+}
+
+func TestComputeSprintRetrospective_PassesBounceCountsThrough(t *testing.T) {
+	got := service.ComputeSprintRetrospective(model.SprintPoints{
+		BounceTrackedTickets: 10, TotalBounces: 7, BouncedTickets: 4,
+	})
+
+	if got.BounceTrackedTickets != 10 || got.TotalBounces != 7 || got.BouncedTickets != 4 {
+		t.Errorf("bounce counts (tracked, total, bounced) = (%d, %d, %d), want (10, 7, 4)",
+			got.BounceTrackedTickets, got.TotalBounces, got.BouncedTickets)
+	}
+}
+
+func TestDashboardService_StuckTickets_UsesThreshold(t *testing.T) {
+	repo := &fakeDashboardRepo{stuck: []model.StuckTicket{{TicketTitle: "A", TotalBounces: 3}}}
+	svc := service.NewDashboardService(repo, &fakeSprintLookup{sprints: map[int64]*model.Sprint{}})
+
+	got, err := svc.StuckTickets(context.Background())
+	if err != nil {
+		t.Fatalf("StuckTickets() unexpected error: %v", err)
+	}
+	if len(got.Tickets) != 1 || got.Tickets[0].TicketTitle != "A" {
+		t.Fatalf("StuckTickets() = %+v, want repo rows passed through", got)
+	}
+	if service.StuckBounceThreshold != 2 || repo.stuckMin != 2 || got.MinBounces != 2 {
+		t.Fatalf("threshold = %d, repo queried with %d, response reports %d; want 2 everywhere",
+			service.StuckBounceThreshold, repo.stuckMin, got.MinBounces)
 	}
 }

@@ -25,6 +25,8 @@ func (f *fakeSprintEntryRepo) Create(ctx context.Context, e *model.SprintEntry) 
 	f.nextID++
 	e.ID = f.nextID
 	e.CreatedAt = time.Now()
+	zero := 0
+	e.BounceCount = &zero // mirrors the column's DEFAULT 0
 	cp := *e
 	f.entries[e.ID] = &cp
 	return nil
@@ -53,6 +55,15 @@ func (f *fakeSprintEntryRepo) Update(ctx context.Context, e *model.SprintEntry) 
 	}
 	cp := *e
 	f.entries[e.ID] = &cp
+	return nil
+}
+
+func (f *fakeSprintEntryRepo) UpdateBounceCount(ctx context.Context, id int64, count int) error {
+	e, ok := f.entries[id]
+	if !ok {
+		return apperr.ErrNotFound
+	}
+	e.BounceCount = &count
 	return nil
 }
 
@@ -256,5 +267,104 @@ func TestSprintEntryService_Create_ValidatesFields(t *testing.T) {
 				t.Fatalf("Create() = %v, want apperr.ErrValidation", err)
 			}
 		})
+	}
+}
+
+// mustCreateNotDoneEntry and mustGetEntry keep the bounce tests from silently
+// ignoring a setup error, which would surface later as a nil dereference.
+func mustCreateNotDoneEntry(t *testing.T, svc *service.SprintEntryService) *model.SprintEntry {
+	t.Helper()
+	entry, err := createEntry(svc, 1, 10, model.EntryNotDone, nil, 5)
+	if err != nil {
+		t.Fatalf("Create() unexpected error: %v", err)
+	}
+	return entry
+}
+
+func mustGetEntry(t *testing.T, repo *fakeSprintEntryRepo, id int64) *model.SprintEntry {
+	t.Helper()
+	entry, err := repo.Get(context.Background(), id)
+	if err != nil {
+		t.Fatalf("Get(%d) unexpected error: %v", id, err)
+	}
+	return entry
+}
+
+func TestSprintEntryService_SetBounceCount_SetsAbsoluteValueOnOpenSprint(t *testing.T) {
+	repo := newFakeSprintEntryRepo()
+	sprints := &fakeSprintLookup{sprints: map[int64]*model.Sprint{10: {ID: 10, Status: model.SprintOpen}}}
+	svc := service.NewSprintEntryService(repo, sprints)
+	entry := mustCreateNotDoneEntry(t, svc)
+
+	for _, want := range []int{2, 2, 0} { // repeating a value is harmless; 0 is a valid reset
+		got, err := svc.SetBounceCount(context.Background(), entry.ID, want)
+		if err != nil {
+			t.Fatalf("SetBounceCount(%d) unexpected error: %v", want, err)
+		}
+		if got.BounceCount == nil || *got.BounceCount != want {
+			t.Fatalf("SetBounceCount(%d) returned BounceCount = %v", want, got.BounceCount)
+		}
+		stored := mustGetEntry(t, repo, entry.ID)
+		if stored.BounceCount == nil || *stored.BounceCount != want {
+			t.Fatalf("stored BounceCount = %v, want %d", stored.BounceCount, want)
+		}
+	}
+}
+
+func TestSprintEntryService_SetBounceCount_RejectedWhenSprintClosed(t *testing.T) {
+	repo := newFakeSprintEntryRepo()
+	sprints := &fakeSprintLookup{sprints: map[int64]*model.Sprint{10: {ID: 10, Status: model.SprintClosed}}}
+	svc := service.NewSprintEntryService(repo, sprints)
+	entry := mustCreateNotDoneEntry(t, svc)
+
+	_, err := svc.SetBounceCount(context.Background(), entry.ID, 1)
+	if !errors.Is(err, apperr.ErrConflict) {
+		t.Fatalf("SetBounceCount() on closed sprint = %v, want apperr.ErrConflict", err)
+	}
+}
+
+func TestSprintEntryService_SetBounceCount_RejectsNegative(t *testing.T) {
+	repo := newFakeSprintEntryRepo()
+	sprints := &fakeSprintLookup{sprints: map[int64]*model.Sprint{10: {ID: 10, Status: model.SprintOpen}}}
+	svc := service.NewSprintEntryService(repo, sprints)
+	entry := mustCreateNotDoneEntry(t, svc)
+
+	_, err := svc.SetBounceCount(context.Background(), entry.ID, -1)
+	if !errors.Is(err, apperr.ErrValidation) {
+		t.Fatalf("SetBounceCount(-1) = %v, want apperr.ErrValidation", err)
+	}
+}
+
+func TestSprintEntryService_SetBounceCount_404sOnMissingEntry(t *testing.T) {
+	svc := service.NewSprintEntryService(newFakeSprintEntryRepo(), &fakeSprintLookup{sprints: map[int64]*model.Sprint{}})
+
+	_, err := svc.SetBounceCount(context.Background(), 999, 1)
+	if !errors.Is(err, apperr.ErrNotFound) {
+		t.Fatalf("SetBounceCount() for missing entry = %v, want apperr.ErrNotFound", err)
+	}
+}
+
+// A full-entry PUT never mentions bounces; it must not reset them.
+func TestSprintEntryService_Update_LeavesBounceCountUntouched(t *testing.T) {
+	repo := newFakeSprintEntryRepo()
+	sprints := &fakeSprintLookup{sprints: map[int64]*model.Sprint{10: {ID: 10, Status: model.SprintOpen}}}
+	svc := service.NewSprintEntryService(repo, sprints)
+	entry := mustCreateNotDoneEntry(t, svc)
+	if _, err := svc.SetBounceCount(context.Background(), entry.ID, 3); err != nil {
+		t.Fatalf("SetBounceCount() unexpected error: %v", err)
+	}
+
+	updated, err := svc.Update(context.Background(), entry.ID, service.UpdateSprintEntryInput{
+		Status: model.EntryDone, PointsAtEntry: 5,
+	})
+	if err != nil {
+		t.Fatalf("Update() unexpected error: %v", err)
+	}
+	if updated.BounceCount == nil || *updated.BounceCount != 3 {
+		t.Fatalf("BounceCount after Update() = %v, want 3", updated.BounceCount)
+	}
+	stored := mustGetEntry(t, repo, entry.ID)
+	if stored.BounceCount == nil || *stored.BounceCount != 3 {
+		t.Fatalf("stored BounceCount after Update() = %v, want 3", stored.BounceCount)
 	}
 }

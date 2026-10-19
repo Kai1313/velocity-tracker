@@ -14,6 +14,7 @@ type SprintEntryRepository interface {
 	Get(ctx context.Context, id int64) (*model.SprintEntry, error)
 	List(ctx context.Context, f repository.SprintEntryFilter) ([]model.SprintEntry, error)
 	Update(ctx context.Context, e *model.SprintEntry) error
+	UpdateBounceCount(ctx context.Context, id int64, count int) error
 	Delete(ctx context.Context, id int64) error
 }
 
@@ -130,6 +131,19 @@ type UpdateSprintEntryInput struct {
 	PointsAtEntry         int
 }
 
+// ensureSprintOpen rejects edits to a closed sprint's entries — closed
+// sprints are locked history, per CONTEXT.md's "Close Sprint" definition.
+func (s *SprintEntryService) ensureSprintOpen(ctx context.Context, sprintID int64) error {
+	sprint, err := s.sprints.Get(ctx, sprintID)
+	if err != nil {
+		return err
+	}
+	if sprint.Status == model.SprintClosed {
+		return fmt.Errorf("%w: sprint %d is closed, its sprint entries are locked", apperr.ErrConflict, sprint.ID)
+	}
+	return nil
+}
+
 // Update rejects edits once the entry's parent sprint is Closed — a closed
 // sprint's SprintEntry rows are locked history, per CONTEXT.md's "Close
 // Sprint" definition.
@@ -148,12 +162,8 @@ func (s *SprintEntryService) Update(ctx context.Context, id int64, in UpdateSpri
 		return nil, err
 	}
 
-	sprint, err := s.sprints.Get(ctx, existing.SprintID)
-	if err != nil {
+	if err := s.ensureSprintOpen(ctx, existing.SprintID); err != nil {
 		return nil, err
-	}
-	if sprint.Status == model.SprintClosed {
-		return nil, fmt.Errorf("%w: sprint %d is closed, its sprint entries are locked", apperr.ErrConflict, sprint.ID)
 	}
 
 	existing.Status = in.Status
@@ -163,6 +173,30 @@ func (s *SprintEntryService) Update(ctx context.Context, id int64, in UpdateSpri
 	if err := s.repo.Update(ctx, existing); err != nil {
 		return nil, err
 	}
+	return existing, nil
+}
+
+// SetBounceCount records how many times QA has sent the entry back to the
+// developer in this sprint. It is its own operation, not part of Update, so a
+// full-entry PUT that doesn't mention bounces can never reset the count. Same
+// closed-sprint lock as Update. See ADR-0013.
+func (s *SprintEntryService) SetBounceCount(ctx context.Context, id int64, count int) (*model.SprintEntry, error) {
+	if count < 0 {
+		return nil, fmt.Errorf("%w: bounceCount must not be negative", apperr.ErrValidation)
+	}
+	existing, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	// Checked here for a clear error naming the sprint; the repository's
+	// conditional UPDATE is what actually closes the check-then-write race.
+	if err := s.ensureSprintOpen(ctx, existing.SprintID); err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateBounceCount(ctx, id, count); err != nil {
+		return nil, err
+	}
+	existing.BounceCount = &count
 	return existing, nil
 }
 

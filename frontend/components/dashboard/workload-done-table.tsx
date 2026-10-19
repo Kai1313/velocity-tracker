@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatBounceAverage } from '@/lib/bounce';
 
 export type WorkloadDoneRow = {
   key: string | number;
@@ -8,6 +9,11 @@ export type WorkloadDoneRow = {
   donePoints: number;
   workloadTickets: number;
   doneTickets: number;
+  // Raw bounce counts over the tickets that have bounce data; the average is
+  // derived at render time so it always shows its counts. No ranking or
+  // colouring by bounce here on purpose — see ADR-0013.
+  bounces: number;
+  bounceTrackedTickets: number;
 };
 
 // The "Developer / Workload / Done / Tickets" table shape repeats across the
@@ -34,12 +40,13 @@ export function WorkloadDoneTable({
               <TableHead>Workload (pts)</TableHead>
               <TableHead>Done (pts)</TableHead>
               <TableHead>Tickets</TableHead>
+              <TableHead>Bounces per ticket</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   {emptyMessage}
                 </TableCell>
               </TableRow>
@@ -53,6 +60,9 @@ export function WorkloadDoneTable({
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {r.doneTickets}/{r.workloadTickets} tickets
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatBounceAverage(r.bounces, r.bounceTrackedTickets) ?? '—'}
                 </TableCell>
               </TableRow>
             ))}

@@ -56,6 +56,24 @@ func (h *DashboardHandler) SprintTicketBreakdown(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, breakdown)
 }
 
+func (h *DashboardHandler) StuckTickets(w http.ResponseWriter, r *http.Request) {
+	stuck, err := h.svc.StuckTickets(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stuck)
+}
+
+func (h *DashboardHandler) BounceBySize(w http.ResponseWriter, r *http.Request) {
+	bands, err := h.svc.BounceBySize(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, bands)
+}
+
 func (h *DashboardHandler) SprintHealth(w http.ResponseWriter, r *http.Request) {
 	health, err := h.svc.SprintHealth(r.Context())
 	if err != nil {

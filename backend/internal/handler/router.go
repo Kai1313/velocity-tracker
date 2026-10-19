@@ -46,6 +46,7 @@ func NewRouter(h Handlers) http.Handler {
 	mux.HandleFunc("GET /sprint-entries", h.SprintEntries.List)
 	mux.HandleFunc("GET /sprint-entries/{id}", h.SprintEntries.Get)
 	mux.HandleFunc("PUT /sprint-entries/{id}", h.SprintEntries.Update)
+	mux.HandleFunc("PATCH /sprint-entries/{id}/bounce-count", h.SprintEntries.SetBounceCount)
 	mux.HandleFunc("DELETE /sprint-entries/{id}", h.SprintEntries.Delete)
 
 	mux.HandleFunc("GET /dashboard/sprints", h.Dashboard.SprintSummaries)
@@ -53,6 +54,8 @@ func NewRouter(h Handlers) http.Handler {
 	mux.HandleFunc("GET /dashboard/sprints/{id}/entries", h.Dashboard.SprintTicketBreakdown)
 	mux.HandleFunc("GET /dashboard/sprint-health", h.Dashboard.SprintHealth)
 	mux.HandleFunc("GET /dashboard/retrospective", h.Dashboard.SprintRetrospective)
+	mux.HandleFunc("GET /dashboard/stuck-tickets", h.Dashboard.StuckTickets)
+	mux.HandleFunc("GET /dashboard/bounce-by-size", h.Dashboard.BounceBySize)
 
 	return withCORS(mux)
 }

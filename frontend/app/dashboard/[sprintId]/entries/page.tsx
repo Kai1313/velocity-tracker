@@ -22,6 +22,8 @@ type DeveloperStats = {
   donePoints: number;
   workloadTickets: number;
   doneTickets: number;
+  bounces: number;
+  bounceTrackedTickets: number;
 };
 
 // Per-developer workload/done stats within one subset (current or carried-over),
@@ -38,9 +40,15 @@ function developerStats(entries: SprintEntryDetail[]): DeveloperStats[] {
       donePoints: 0,
       workloadTickets: 0,
       doneTickets: 0,
+      bounces: 0,
+      bounceTrackedTickets: 0,
     };
     bucket.workloadPoints += e.pointsAtEntry;
     bucket.workloadTickets += 1;
+    if (e.bounceCount !== null) {
+      bucket.bounces += e.bounceCount;
+      bucket.bounceTrackedTickets += 1;
+    }
     if (e.status === 'Done') {
       bucket.donePoints += e.pointsAtEntry;
       bucket.doneTickets += 1;
@@ -60,6 +68,8 @@ function developerRows(stats: DeveloperStats[]) {
     donePoints: s.donePoints,
     workloadTickets: s.workloadTickets,
     doneTickets: s.doneTickets,
+    bounces: s.bounces,
+    bounceTrackedTickets: s.bounceTrackedTickets,
   }));
 }
 

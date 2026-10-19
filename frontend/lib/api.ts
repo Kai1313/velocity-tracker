@@ -14,6 +14,10 @@ export type DeveloperSummary = {
   donePoints: number;
   workloadTickets: number;
   doneTickets: number;
+  // Raw bounce counts over the entries that have bounce data; bounceTrackedTickets
+  // is 0 when none are tracked. Averages are derived from these at render time.
+  bounces: number;
+  bounceTrackedTickets: number;
 };
 
 export type Sprint = {
@@ -60,6 +64,9 @@ export type SprintEntry = {
   carriedFrom: number | null;
   pointsAtEntry: number;
   createdAt: string;
+  // How many times QA sent this entry back to the developer in this sprint.
+  // null means "not tracked" (entries that predate the feature), not zero.
+  bounceCount: number | null;
 };
 
 export type SprintEntryDetail = {
@@ -72,6 +79,7 @@ export type SprintEntryDetail = {
   addedAfterSprintStart: boolean;
   pointsAtEntry: number;
   carriedFromSprintName: string | null;
+  bounceCount: number | null;
 };
 
 export type SprintTicketBreakdown = {
@@ -108,6 +116,36 @@ export type SprintRetrospective = {
   lateAddTickets: number;
   planningAccuracy: number | null;
   lateAddRate: number | null;
+  bounceTrackedTickets: number;
+  totalBounces: number;
+  bouncedTickets: number;
+};
+
+export type StuckTicket = {
+  sprintId: number;
+  sprintName: string;
+  entryId: number;
+  ticketId: number;
+  ticketTitle: string;
+  projectName: string;
+  assigneeName: string;
+  pointsAtEntry: number;
+  bounceCount: number;
+  earlierBounces: number;
+  totalBounces: number;
+};
+
+export type StuckTicketList = {
+  minBounces: number;
+  tickets: StuckTicket[];
+};
+
+// Counted per sprint entry, not per ticket: a ticket carried over twice is three entries.
+export type BounceBySize = {
+  band: string;
+  entries: number;
+  bouncedEntries: number;
+  totalBounces: number;
 };
 
 function backendUrl() {
@@ -170,6 +208,14 @@ export function getSprintHealth() {
 
 export function getSprintRetrospective(limit?: number) {
   return getJSON<SprintRetrospective[]>(`/dashboard/retrospective${limit ? `?limit=${limit}` : ''}`);
+}
+
+export function getStuckTickets() {
+  return getJSON<StuckTicketList>('/dashboard/stuck-tickets');
+}
+
+export function getBounceBySize() {
+  return getJSON<BounceBySize[]>('/dashboard/bounce-by-size');
 }
 
 export function getSprint(sprintId: number) {
@@ -281,6 +327,13 @@ export function createSprintEntry(input: SprintEntryCreateInput) {
 
 export function updateSprintEntry(id: number, input: SprintEntryUpdateInput) {
   return requestJSON<SprintEntry>('PUT', `/sprint-entries/${id}`, input);
+}
+
+// Sets the bounce count to an absolute value (not an increment), so a retried
+// request is harmless. Separate from updateSprintEntry on purpose: the full
+// PUT never carries bounces, so it can't reset them.
+export function setSprintEntryBounceCount(id: number, bounceCount: number) {
+  return requestJSON<SprintEntry>('PATCH', `/sprint-entries/${id}/bounce-count`, { bounceCount });
 }
 
 export function deleteSprintEntry(id: number) {

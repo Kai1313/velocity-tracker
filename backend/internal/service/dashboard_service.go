@@ -13,7 +13,14 @@ type DashboardRepository interface {
 	TicketEntries(ctx context.Context, sprintID int64) ([]model.SprintEntryDetail, error)
 	SprintPoints(ctx context.Context) ([]model.SprintPoints, error)
 	ClosedSprintPoints(ctx context.Context, limit int) ([]model.SprintPoints, error)
+	StuckTickets(ctx context.Context, minBounces int) ([]model.StuckTicket, error)
+	BounceBySize(ctx context.Context) ([]model.BounceBySize, error)
 }
+
+// StuckBounceThreshold is how many total bounces (this sprint plus earlier
+// sprints) make a NotDone ticket "stuck". A placeholder for v1, not a
+// validated threshold — see ADR-0013.
+const StuckBounceThreshold = 2
 
 type DashboardService struct {
 	repo    DashboardRepository
@@ -154,6 +161,10 @@ func ComputeSprintRetrospective(p model.SprintPoints) model.SprintRetrospective 
 		CommittedTickets:     p.CommittedTickets,
 		CommittedDoneTickets: p.CommittedDoneTickets,
 		LateAddTickets:       p.LateAddTickets,
+
+		BounceTrackedTickets: p.BounceTrackedTickets,
+		TotalBounces:         p.TotalBounces,
+		BouncedTickets:       p.BouncedTickets,
 	}
 	if p.CommittedPoints > 0 {
 		accuracy := float64(p.CommittedDonePoints) / float64(p.CommittedPoints) * 100
@@ -162,6 +173,22 @@ func ComputeSprintRetrospective(p model.SprintPoints) model.SprintRetrospective 
 		r.LateAddRate = &lateAddRate
 	}
 	return r
+}
+
+// StuckTickets lists NotDone tickets in Open sprints that have bounced at
+// least StuckBounceThreshold times in total, along with that threshold.
+func (s *DashboardService) StuckTickets(ctx context.Context) (*model.StuckTicketList, error) {
+	tickets, err := s.repo.StuckTickets(ctx, StuckBounceThreshold)
+	if err != nil {
+		return nil, err
+	}
+	return &model.StuckTicketList{MinBounces: StuckBounceThreshold, Tickets: tickets}, nil
+}
+
+// BounceBySize returns bounce totals per story-point band across all closed
+// sprints' tracked entries.
+func (s *DashboardService) BounceBySize(ctx context.Context) ([]model.BounceBySize, error) {
+	return s.repo.BounceBySize(ctx)
 }
 
 func sprintHealthStatus(h model.SprintHealth) model.SprintHealthStatus {

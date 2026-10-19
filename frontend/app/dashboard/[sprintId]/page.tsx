@@ -86,6 +86,8 @@ export default async function SprintDashboardPage({
           donePoints: d.donePoints,
           workloadTickets: d.workloadTickets,
           doneTickets: d.doneTickets,
+          bounces: d.bounces,
+          bounceTrackedTickets: d.bounceTrackedTickets,
         }))}
       />
     </main>

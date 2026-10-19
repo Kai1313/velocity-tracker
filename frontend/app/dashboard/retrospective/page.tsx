@@ -2,7 +2,8 @@ import Link from 'next/link';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SprintRetrospectiveTable } from '@/components/dashboard/sprint-retrospective-table';
-import { getSprintRetrospective } from '@/lib/api';
+import { BounceBySizeTable } from '@/components/dashboard/bounce-by-size-table';
+import { getBounceBySize, getSprintRetrospective } from '@/lib/api';
 
 const WINDOW_OPTIONS = [3, 6, 9];
 const DEFAULT_LIMIT = 3;
@@ -16,7 +17,7 @@ export default async function RetrospectivePage({
   const parsed = limitParam ? Number(limitParam) : DEFAULT_LIMIT;
   const limit = Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_LIMIT;
 
-  const rows = await getSprintRetrospective(limit);
+  const [rows, bounceBySize] = await Promise.all([getSprintRetrospective(limit), getBounceBySize()]);
 
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-8">
@@ -54,6 +55,18 @@ export default async function RetrospectivePage({
         </CardHeader>
         <CardContent className="overflow-x-auto p-0 pb-6">
           <SprintRetrospectiveTable rows={rows} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bounces by ticket size</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Across every closed sprint with bounce data — not limited to the last {limit} shown above.
+          </p>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0 pb-6">
+          <BounceBySizeTable rows={bounceBySize} />
         </CardContent>
       </Card>
     </main>

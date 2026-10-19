@@ -89,6 +89,11 @@ type DeveloperSummary struct {
 	DonePoints      int    `json:"donePoints"`
 	WorkloadTickets int    `json:"workloadTickets"`
 	DoneTickets     int    `json:"doneTickets"`
+	// Bounce figures cover only entries with tracked bounce data
+	// (BounceTrackedTickets of WorkloadTickets). The average is derived by
+	// the caller from these raw counts. A sprint-scoped figure — see ADR-0013.
+	Bounces              int `json:"bounces"`
+	BounceTrackedTickets int `json:"bounceTrackedTickets"`
 }
 
 type SprintEntry struct {
@@ -100,6 +105,10 @@ type SprintEntry struct {
 	CarriedFrom           *int64      `json:"carriedFrom"`
 	PointsAtEntry         int         `json:"pointsAtEntry"`
 	CreatedAt             time.Time   `json:"createdAt"`
+	// BounceCount is how many times QA sent this entry back to the developer
+	// within this sprint. nil means "not tracked" (entries that predate the
+	// feature), which is not the same as 0. See ADR-0013.
+	BounceCount *int `json:"bounceCount"`
 }
 
 // SprintEntryDetail is one ticket's SprintEntry within a single sprint,
@@ -118,6 +127,7 @@ type SprintEntryDetail struct {
 	AddedAfterSprintStart bool        `json:"addedAfterSprintStart"`
 	PointsAtEntry         int         `json:"pointsAtEntry"`
 	CarriedFromSprintName *string     `json:"carriedFromSprintName"`
+	BounceCount           *int        `json:"bounceCount"`
 }
 
 // SprintTicketBreakdown splits a sprint's entries into freshly-planned
@@ -150,6 +160,10 @@ type SprintPoints struct {
 	CommittedTickets     int `json:"committedTickets"`
 	CommittedDoneTickets int `json:"committedDoneTickets"`
 	LateAddTickets       int `json:"lateAddTickets"`
+	// Bounce totals cover only non-Cancelled entries with tracked bounce data.
+	BounceTrackedTickets int `json:"bounceTrackedTickets"`
+	TotalBounces         int `json:"totalBounces"`
+	BouncedTickets       int `json:"bouncedTickets"`
 }
 
 // SprintRetrospective is one closed sprint's commitment-reliability
@@ -174,6 +188,46 @@ type SprintRetrospective struct {
 	LateAddTickets       int      `json:"lateAddTickets"`
 	PlanningAccuracy     *float64 `json:"planningAccuracy"`
 	LateAddRate          *float64 `json:"lateAddRate"`
+	// Bounce figures count only entries with tracked bounce data
+	// (BounceTrackedTickets); a sprint that predates the feature has 0 tracked
+	// tickets, shown as "not tracked" rather than 0. The per-ticket average is
+	// derived by the caller from these raw counts.
+	BounceTrackedTickets int `json:"bounceTrackedTickets"`
+	TotalBounces         int `json:"totalBounces"`
+	BouncedTickets       int `json:"bouncedTickets"`
+}
+
+// StuckTicket is a NotDone entry in an Open sprint whose ticket has bounced
+// at least the stuck threshold's worth of times across all its entries.
+type StuckTicket struct {
+	SprintID       int64  `json:"sprintId"`
+	SprintName     string `json:"sprintName"`
+	EntryID        int64  `json:"entryId"`
+	TicketID       int64  `json:"ticketId"`
+	TicketTitle    string `json:"ticketTitle"`
+	ProjectName    string `json:"projectName"`
+	AssigneeName   string `json:"assigneeName"`
+	PointsAtEntry  int    `json:"pointsAtEntry"`
+	BounceCount    int    `json:"bounceCount"`
+	EarlierBounces int    `json:"earlierBounces"`
+	TotalBounces   int    `json:"totalBounces"`
+}
+
+// StuckTicketList is the stuck-tickets response: the tickets plus the
+// threshold that selected them, so the UI never hard-codes the number.
+type StuckTicketList struct {
+	MinBounces int           `json:"minBounces"`
+	Tickets    []StuckTicket `json:"tickets"`
+}
+
+// BounceBySize is one story-point band's bounce totals across every closed
+// sprint's tracked, non-Cancelled entries. Counted per entry, so a ticket
+// carried over twice appears three times.
+type BounceBySize struct {
+	Band           string `json:"band"`
+	Entries        int    `json:"entries"`
+	BouncedEntries int    `json:"bouncedEntries"`
+	TotalBounces   int    `json:"totalBounces"`
 }
 
 // SprintHealthStatus is the early-warning signal for one SprintHealth

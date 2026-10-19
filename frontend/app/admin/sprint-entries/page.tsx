@@ -21,6 +21,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { DeleteConfirmButton } from '@/components/admin/delete-confirm-button';
+import { BounceStepper } from '@/components/admin/bounce-stepper';
+import { earlierBounces } from '@/lib/bounce';
 import { useFormDialogState } from '@/lib/hooks/use-form-dialog';
 import { lookupLabel } from '@/lib/lookup';
 import {
@@ -532,6 +534,7 @@ function SprintEntriesPageInner() {
                 <TableHead>Sprint</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Points</TableHead>
+                <TableHead>Bounces</TableHead>
                 <TableHead />
                 <TableHead className="w-1" />
               </TableRow>
@@ -539,7 +542,7 @@ function SprintEntriesPageInner() {
             <TableBody>
               {filteredEntries?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     {hasActiveFilters ? 'No entries match these filters.' : 'No sprint entries yet.'}
                   </TableCell>
                 </TableRow>
@@ -552,6 +555,14 @@ function SprintEntriesPageInner() {
                     <Badge variant={statusVariant[e.status]}>{e.status}</Badge>
                   </TableCell>
                   <TableCell>{e.pointsAtEntry}</TableCell>
+                  <TableCell>
+                    <BounceStepper
+                      entry={e}
+                      earlier={earlierBounces(e, allEntries ?? [])}
+                      locked={sprintClosed(e.sprintId)}
+                      onSaved={upsert}
+                    />
+                  </TableCell>
                   <TableCell>
                     {e.addedAfterSprintStart && <Badge variant="secondary">Late add</Badge>}
                     {sprintClosed(e.sprintId) && <Badge variant="outline">Locked</Badge>}

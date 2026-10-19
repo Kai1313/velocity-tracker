@@ -28,7 +28,13 @@ export type ApiProject = { id: number; name: string; status: 'Active' | 'Archive
 export type ApiUser = { id: number; name: string; role: 'Lead' | 'Developer' };
 export type ApiTicket = { id: number; projectId: number; title: string; storyPoints: number; assigneeId: number | null };
 export type ApiSprint = { id: number; name: string; startDate: string; endDate: string; status: 'Open' | 'Closed' };
-export type ApiSprintEntry = { id: number; ticketId: number; sprintId: number; carriedFrom: number | null };
+export type ApiSprintEntry = {
+  id: number;
+  ticketId: number;
+  sprintId: number;
+  carriedFrom: number | null;
+  bounceCount: number | null;
+};
 
 export const api = {
   createProject: (name: string) => request<ApiProject>('POST', '/projects', { name }),
@@ -71,6 +77,8 @@ export const api = {
       pointsAtEntry,
     }),
   deleteSprintEntry: (id: number) => request<void>('DELETE', `/sprint-entries/${id}`),
+  setBounceCount: (id: number, bounceCount: number) =>
+    request<ApiSprintEntry>('PATCH', `/sprint-entries/${id}/bounce-count`, { bounceCount }),
   listSprintEntries: () => request<ApiSprintEntry[]>('GET', '/sprint-entries'),
 };
 

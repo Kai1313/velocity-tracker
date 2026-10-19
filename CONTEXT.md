@@ -12,13 +12,20 @@ The stable record of a piece of work: id, title, story points, owning project. A
 _Note_: `title` is not guaranteed unique across `Project`s — two projects can independently reuse the same numbering scheme (e.g. both landing on `2026_07_FEATURE_110`). Anywhere a ticket is identified by title alone, prefix it with its project name to stay unambiguous; see the [Admin UI section of README.md](README.md#admin-ui) for where this actually matters today.
 
 **SprintEntry**:
-One row per sprint that a Ticket appears in. Holds the per-sprint snapshot: status (Done / Not Done / Cancelled), whether it was added after sprint start, and — if carried over — a `carried-from` reference to the SprintEntry it continued from. A ticket that spans 3 sprints has 3 SprintEntry rows, one per sprint, so each sprint's history stays immutable once that sprint closes.
+One row per sprint that a Ticket appears in. Holds the per-sprint snapshot: status (Done / Not Done / Cancelled), whether it was added after sprint start, its **Bounce** count, and — if carried over — a `carried-from` reference to the SprintEntry it continued from. A ticket that spans 3 sprints has 3 SprintEntry rows, one per sprint, so each sprint's history stays immutable once that sprint closes.
 _Avoid_: treating Ticket and its sprint appearance as the same row — that was the xlsx mockup's mistake, and it's why the mockup couldn't compute carry-over or planning-accuracy history correctly.
 _Validation_: `carried-from` is only accepted if it points to the *same ticket's* own `NotDone` entry in a sprint that's already `Closed` — anything else (a different ticket, a `Done`/`Cancelled` source, a still-`Open` source sprint) is rejected. See [ADR-0005](docs/adr/0005-carried-from-validation.md).
 _Invariant_: a ticket can have at most one `SprintEntry` in an `Open` sprint at a time — enforced by a database trigger, not the service layer. See [ADR-0007](docs/adr/0007-single-open-sprintentry-per-ticket.md).
 
 **User**:
 A structured record for a team member (lead developer or developer) who can be assigned tickets. Replaces free-text assignee names. Carries a `role`, but no permissions are gated on it in MVP — it's descriptive only, reserved for future per-role views.
+
+**Bounce**:
+One trip of a ticket from QA back to the developer because QA found a bug. The flow is Dev finishes → QA tests → bug found → back to the dev, repeating until QA passes it; only then is the entry `Done`. Recorded as `bounce_count` on the `SprintEntry`, so it is per sprint and **restarts at 0 when a ticket is carried over**. `NULL` means "not tracked" (entries from before the feature), which is not the same as 0. Bounce is a team- and ticket-level signal: it is deliberately never ranked per developer. See [ADR-0013](docs/adr/0013-bounce-tracking.md).
+_Avoid_: using "bounce" for a ticket carried over to the next sprint (that's a carry-over), or for a bug found after the ticket was already `Done`.
+
+**Stuck Ticket**:
+A `NotDone` entry in an `Open` sprint (`Active` projects only) whose ticket has bounced at least 2 times in total — this sprint's `bounce_count` plus the same ticket's entries in earlier sprints. A placeholder threshold, not a validated one. Shown on the dashboard. See [ADR-0013](docs/adr/0013-bounce-tracking.md).
 
 **Current Status** (of a Ticket):
 Never stored directly on `Ticket`. Always computed by reading the `status` of that ticket's most recent `SprintEntry`. Avoids a denormalized field drifting out of sync if a past `SprintEntry` is corrected.

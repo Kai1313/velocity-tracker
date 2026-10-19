@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"velocity-tracker/backend/internal/apperr"
 	"velocity-tracker/backend/internal/model"
 )
 
@@ -32,18 +33,18 @@ func NewSprintEntryRepository(db dbtx) *SprintEntryRepository {
 func (r *SprintEntryRepository) Create(ctx context.Context, e *model.SprintEntry) error {
 	err := r.db.QueryRow(ctx,
 		`INSERT INTO sprint_entry (ticket_id, sprint_id, status, added_after_sprint_start, carried_from, points_at_entry)
-		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, bounce_count`,
 		e.TicketID, e.SprintID, e.Status, e.AddedAfterSprintStart, e.CarriedFrom, e.PointsAtEntry,
-	).Scan(&e.ID, &e.CreatedAt)
+	).Scan(&e.ID, &e.CreatedAt, &e.BounceCount)
 	return wrapMutationErr(err, false)
 }
 
 func (r *SprintEntryRepository) Get(ctx context.Context, id int64) (*model.SprintEntry, error) {
 	e := &model.SprintEntry{}
 	err := r.db.QueryRow(ctx,
-		`SELECT id, ticket_id, sprint_id, status, added_after_sprint_start, carried_from, points_at_entry, created_at
+		`SELECT id, ticket_id, sprint_id, status, added_after_sprint_start, carried_from, points_at_entry, created_at, bounce_count
 		 FROM sprint_entry WHERE id = $1`, id,
-	).Scan(&e.ID, &e.TicketID, &e.SprintID, &e.Status, &e.AddedAfterSprintStart, &e.CarriedFrom, &e.PointsAtEntry, &e.CreatedAt)
+	).Scan(&e.ID, &e.TicketID, &e.SprintID, &e.Status, &e.AddedAfterSprintStart, &e.CarriedFrom, &e.PointsAtEntry, &e.CreatedAt, &e.BounceCount)
 	if err != nil {
 		return nil, wrapReadErr(err)
 	}
@@ -51,7 +52,7 @@ func (r *SprintEntryRepository) Get(ctx context.Context, id int64) (*model.Sprin
 }
 
 func (r *SprintEntryRepository) List(ctx context.Context, f SprintEntryFilter) ([]model.SprintEntry, error) {
-	query := `SELECT se.id, se.ticket_id, se.sprint_id, se.status, se.added_after_sprint_start, se.carried_from, se.points_at_entry, se.created_at
+	query := `SELECT se.id, se.ticket_id, se.sprint_id, se.status, se.added_after_sprint_start, se.carried_from, se.points_at_entry, se.created_at, se.bounce_count
 		 FROM sprint_entry se`
 
 	needsTicketJoin := f.ProjectID != nil || f.Search != nil
@@ -94,7 +95,7 @@ func (r *SprintEntryRepository) List(ctx context.Context, f SprintEntryFilter) (
 	entries := []model.SprintEntry{}
 	for rows.Next() {
 		var e model.SprintEntry
-		if err := rows.Scan(&e.ID, &e.TicketID, &e.SprintID, &e.Status, &e.AddedAfterSprintStart, &e.CarriedFrom, &e.PointsAtEntry, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.TicketID, &e.SprintID, &e.Status, &e.AddedAfterSprintStart, &e.CarriedFrom, &e.PointsAtEntry, &e.CreatedAt, &e.BounceCount); err != nil {
 			return nil, wrapReadErr(err)
 		}
 		entries = append(entries, e)
@@ -114,6 +115,34 @@ func (r *SprintEntryRepository) Update(ctx context.Context, e *model.SprintEntry
 		return wrapReadErr(pgx.ErrNoRows)
 	}
 	return nil
+}
+
+// UpdateBounceCount sets the entry's bounce count to an absolute value rather
+// than incrementing, so a retried request is harmless. The write is itself
+// conditional on the entry's sprint being Open, so a sprint closing between
+// the service's check and this statement cannot let a change through. A
+// refused write is a conflict if the entry exists, not found if it doesn't.
+func (r *SprintEntryRepository) UpdateBounceCount(ctx context.Context, id int64, count int) error {
+	tag, err := r.db.Exec(ctx,
+		`UPDATE sprint_entry SET bounce_count = $1
+		 WHERE id = $2 AND sprint_id IN (SELECT id FROM sprint WHERE status = 'Open')`,
+		count, id,
+	)
+	if err != nil {
+		return wrapMutationErr(err, false)
+	}
+	if tag.RowsAffected() > 0 {
+		return nil
+	}
+
+	var exists bool
+	if err := r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM sprint_entry WHERE id = $1)`, id).Scan(&exists); err != nil {
+		return wrapReadErr(err)
+	}
+	if !exists {
+		return wrapReadErr(pgx.ErrNoRows)
+	}
+	return fmt.Errorf("%w: entry %d's sprint is closed, its sprint entries are locked", apperr.ErrConflict, id)
 }
 
 func (r *SprintEntryRepository) Delete(ctx context.Context, id int64) error {
